@@ -51,4 +51,4 @@ if response.status_code == 200:
     image_url = result["images"][0]["url"]
     print("생성된 이미지 URL:", image_url)
 else:
-    print("API 호출 실패:", response.status_code, response.text)
+    print("API call failed:", response.status_code, response.text)
