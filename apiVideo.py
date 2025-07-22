@@ -36,7 +36,7 @@ headers = {
 }
 
 # 요청 바디 (예시)
-data = {
+test_data = {
     "model_name": "kling-v1",
     "mode": "pro",
     "duration": "5",
@@ -54,11 +54,11 @@ data = {
     ]
 }
 
-test_data = {
+data = {
     "model_name": "kling-v2-1",
     "mode": "pro",
-    "duration": "5",
-    "image": "https://naver.me/FINrzCov",
+    "duration": "10",
+    "image": "https://raw.githubusercontent.com/robertchoi/now-a-gift/refs/heads/main/images/1.png",
     "prompt": "happy and peaceful moments",
     "cfg_scale": 0.5,
 }
