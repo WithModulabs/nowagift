@@ -55,7 +55,7 @@ if __name__ == "__main__":
         ethnicity="East Asian",
         orientation="horizontal",
         pose="half_body",
-        style="Realistic",
+        style="Vintage",   # 또는 "Realistic"
         appearance="A headshot of a casually dressed person. A mild smile and a relaxed expression. The background is made cleanly white. retro style [Landscape, Upper Body, Vintage/Realistic]"
     )
     print(result)
