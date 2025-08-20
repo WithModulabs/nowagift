@@ -203,8 +203,8 @@ def final_producer_tool(state: AgentState):
     audio_path = state.get("audio_path")
     total_duration = state.get("total_duration")
 
-    if not storyboard or not image_paths or not audio_path:
-        error_msg = "영상 제작에 필요한 정보(스토리보드, 이미지, 오디오)가 부족합니다."
+    if not storyboard or not image_paths:
+        error_msg = "영상 제작에 필요한 정보(스토리보드, 이미지)가 부족합니다."
         st.error(error_msg)
         return {"error_message": error_msg}
 
@@ -257,13 +257,13 @@ def final_producer_tool(state: AgentState):
     # 모든 영상 클립을 하나로 연결
     final_clip = concatenate_videoclips(clips, method="compose")
 
-    # 오디오 파일 로드 및 영상 길이에 맞게 조절
-    audio_clip = AudioFileClip(audio_path)
-    if audio_clip.duration > total_duration:
-        audio_clip = audio_clip.subclip(0, total_duration)
-
-    # 영상에 오디오 삽입
-    final_clip = final_clip.set_audio(audio_clip)
+    # 오디오 파일이 있으면 로드 및 영상 길이에 맞게 조절
+    if audio_path:
+        audio_clip = AudioFileClip(audio_path)
+        if audio_clip.duration > total_duration:
+            audio_clip = audio_clip.subclip(0, total_duration)
+        # 영상에 오디오 삽입
+        final_clip = final_clip.set_audio(audio_clip)
 
     # 최종 영상 파일로 저장
     output_filename = f"temp/final_video_{uuid.uuid4()}.mp4"
@@ -363,8 +363,6 @@ with col2:
             validation_errors.append("최소 3개 이상의 문항을 입력해주세요.")
         if not uploaded_images:
             validation_errors.append("사진을 업로드해주세요.")
-        if not uploaded_audio:
-            validation_errors.append("음성 파일을 업로드해주세요.")
         
         if validation_errors:
             for error in validation_errors:
@@ -381,9 +379,11 @@ with col2:
                     img.save(file_path)
                     temp_image_paths.append(file_path)
 
-                temp_audio_path = f"temp/{uuid.uuid4()}.mp3"
-                with open(temp_audio_path, "wb") as f:
-                    f.write(uploaded_audio.getbuffer())
+                temp_audio_path = None
+                if uploaded_audio:
+                    temp_audio_path = f"temp/{uuid.uuid4()}.mp3"
+                    with open(temp_audio_path, "wb") as f:
+                        f.write(uploaded_audio.getbuffer())
 
                 # 2. 에이전트 초기 상태 설정
                 initial_state = AgentState(
@@ -422,7 +422,7 @@ with col2:
                 # 5. 임시 파일 정리
                 for path in temp_image_paths:
                     if os.path.exists(path): os.remove(path)
-                if os.path.exists(temp_audio_path): os.remove(temp_audio_path)
+                if temp_audio_path and os.path.exists(temp_audio_path): os.remove(temp_audio_path)
                 if 'video_path' in locals() and os.path.exists(video_path): 
                      os.remove(video_path)
 
