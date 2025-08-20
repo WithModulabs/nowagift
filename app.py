@@ -130,13 +130,23 @@ def scenario_writer_agent(state: AgentState):
             (
                 "system",
                 """당신은 감동적인 추모 영상을 위한 시나리오 작가입니다.
-                사용자의 스크립트와 이미지 개수를 바탕으로, 각 장면의 내용과 길이를 JSON 형식의 스토리보드(storyboard)로 만들어야 합니다.
+                사용자의 7개 문항으로 구성된 스크립트와 이미지 개수를 바탕으로, 각 장면의 내용과 길이를 JSON 형식의 스토리보드(storyboard)로 만들어야 합니다.
+                
+                사용자의 스크립트는 7개의 문항으로 구성되어 있습니다:
+                1. "내가 가장 행복했을 때는" + 사용자 입력
+                2. 사용자 자유 입력
+                3. 사용자 자유 입력  
+                4. "여보," + 사용자 입력
+                5. 사용자 자유 입력
+                6. 사용자 자유 입력
+                7. "지금, 선물" + 사용자 입력
+                
                 - 전체 영상 길이는 반드시 {total_duration}초가 되어야 합니다.
                 - 이미지 개수({num_images}개)에 맞춰 각 장면의 길이를 균등하게 또는 의미에 맞게 배분해주세요.
                 - 각 장면(scene)은 'image_index', 'duration', 'text_overlay' 키를 가져야 합니다.
                 - 'image_index'는 0부터 시작하는 이미지 순서입니다.
                 - 'duration'은 해당 장면의 초 단위 길이입니다. 모든 duration의 합은 {total_duration}이 되어야 합니다.
-                - 'text_overlay'는 해당 장면에 표시될 자막입니다. 사용자의 스크립트를 바탕으로 각 장면에 어울리는 문구를 자연스럽게 분배해주세요.
+                - 'text_overlay'는 해당 장면에 표시될 자막입니다. 사용자의 7개 문항을 각 장면에 자연스럽게 배분하되, 문항의 순서와 의미를 고려해주세요.
                 - 테마 '{theme}'의 분위기를 반영해주세요.
                 - 최종 출력은 오직 JSON 객체만 있어야 합니다.
                 """,
@@ -296,12 +306,37 @@ with col1:
         help="영상 전체의 분위기를 결정합니다."
     )
 
-    script = st.text_area(
-        "영상에 담을 글 입력",
-        height=200,
-        placeholder="고인과의 소중한 추억이나 전하고 싶은 메시지를 자유롭게 적어주세요. 이 글을 바탕으로 AI가 자막을 구성합니다.",
-        help="최소 50자 이상 작성해주세요."
-    )
+    st.subheader("영상에 담을 글 입력 (7개 문항)")
+    
+    # 7개의 고정/자유 입력 필드
+    text_inputs = []
+    
+    # 첫 번째 필드 (고정 - 입력 필드 없음)
+    st.write("**1. 내가 가장 행복했을 때는**")
+    text_inputs.append("내가 가장 행복했을 때는")
+    
+    # 두 번째 필드 (자유입력)
+    text_inputs.append(st.text_input("**2.** 두 번째 문장", key="text2", value="내 나이 76세, 평생 공부하고 싶던, 대학교를 졸업했을 때."))
+    
+    # 세 번째 필드 (자유입력)
+    text_inputs.append(st.text_input("**3.** 세 번째 문장", key="text3", value="응원해 준, 우리 딸 많이 사랑해"))
+    
+    # 네 번째 필드 (고정 - 입력 필드 없음)
+    st.write("**4. 여보,**")
+    text_inputs.append("여보,")
+    
+    # 다섯 번째 필드 (자유입력)
+    text_inputs.append(st.text_input("**5.** 다섯 번째 문장", key="text5", value="평생 나와 살면서 고생 많았어"))
+    
+    # 여섯 번째 필드 (자유입력)
+    text_inputs.append(st.text_input("**6.** 여섯 번째 문장", key="text6", value="항상 고맙고, 즐겁고 행복한 삶을 살았으면 좋겠다. 고맙다."))
+    
+    # 일곱 번째 필드 (고정 - 입력 필드 없음)
+    st.write("**7. 지금, 선물**")
+    text_inputs.append("지금, 선물")
+    
+    # 전체 텍스트 조합
+    script = "\n".join([text for text in text_inputs if text.strip()])
 
     uploaded_images = st.file_uploader(
         "사진 업로드 (5장 이상 권장)",
@@ -322,8 +357,10 @@ with col2:
     if st.button("🎥 영상 제작 시작하기", type="primary"):
         # 입력 값 검증
         validation_errors = []
-        if not script or len(script) <= 10:
-            validation_errors.append("글을 10자 이상 입력해주세요.")
+        # 최소 3개 이상의 필드가 입력되었는지 확인
+        filled_inputs = [text for text in text_inputs if len(text.strip()) > 0]
+        if len(filled_inputs) < 3:
+            validation_errors.append("최소 3개 이상의 문항을 입력해주세요.")
         if not uploaded_images:
             validation_errors.append("사진을 업로드해주세요.")
         if not uploaded_audio:
