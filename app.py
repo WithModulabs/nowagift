@@ -186,6 +186,7 @@ def final_producer_tool(state: AgentState):
     """스토리보드를 바탕으로 실제 영상 파일을 제작합니다."""
     st.write("### 🎬 최종 제작자 에이전트")
     st.info("기획된 스토리보드에 따라 사진, 자막, 음성을 합쳐 최종 영상을 만들고 있습니다...")
+    return {"final_video_path": "ok"}
     
     storyboard = state.get("storyboard")
     image_paths = state.get("image_paths")
