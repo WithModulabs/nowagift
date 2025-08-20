@@ -1,3 +1,10 @@
 python-dotenv
 pyjwt
 requests 
+streamlit
+langchain
+langgraph
+langchain-openai
+moviepy
+Pillow
+uvicorn
