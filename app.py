@@ -133,18 +133,18 @@ def scenario_writer_agent(state: AgentState):
                 사용자의 7개 문항으로 구성된 스크립트와 이미지 개수를 바탕으로, 각 장면의 내용과 길이를 JSON 형식의 스토리보드(storyboard)로 만들어야 합니다.
                 
                 사용자의 스크립트는 7개의 문항으로 구성되어 있습니다:
-                1. "내가 가장 행복했을 때는" + 사용자 입력
+                1. "내가 가장 행복했을 때는"
                 2. 사용자 자유 입력
                 3. 사용자 자유 입력  
-                4. "여보," + 사용자 입력
+                4. "여보,"
                 5. 사용자 자유 입력
                 6. 사용자 자유 입력
-                7. "지금, 선물" + 사용자 입력
+                7. "지금, 선물"
                 
                 - 전체 영상 길이는 반드시 {total_duration}초가 되어야 합니다.
-                - 이미지 개수({num_images}개)에 맞춰 각 장면의 길이를 균등하게 또는 의미에 맞게 배분해주세요.
+                - 각 장면은 10초, 10초, 10초, 5초, 10초, 10초, 12초로 구성됩니다.
                 - 각 장면(scene)은 'image_index', 'duration', 'text_overlay' 키를 가져야 합니다.
-                - 'image_index'는 0부터 시작하는 이미지 순서입니다.
+                - 'image_index'는 순서대로 1, 2, 4, 5로 구성됩니다.
                 - 'duration'은 해당 장면의 초 단위 길이입니다. 모든 duration의 합은 {total_duration}이 되어야 합니다.
                 - 'text_overlay'는 해당 장면에 표시될 자막입니다. 사용자의 7개 문항을 각 장면에 자연스럽게 배분하되, 문항의 순서와 의미를 고려해주세요.
                 - 테마 '{theme}'의 분위기를 반영해주세요.
@@ -338,12 +338,31 @@ with col1:
     # 전체 텍스트 조합
     script = "\n".join([text for text in text_inputs if text.strip()])
 
-    uploaded_images = st.file_uploader(
-        "사진 업로드 (5장 이상 권장)",
-        type=["jpg", "jpeg", "png"],
-        accept_multiple_files=True,
-        help="고화질 사진을 시간 순서대로 선택하면 더 좋습니다."
-    )
+    st.subheader("사진 업로드 (4장)")
+    uploaded_images = []
+    
+    # 4개의 개별 이미지 업로드 필드
+    for i in range(1, 5):
+        st.write(f"**{i}번째 사진**")
+        col_upload, col_thumb = st.columns([2, 1])
+        
+        with col_upload:
+            img = st.file_uploader(
+                f"{i}번째 사진 선택",
+                type=["jpg", "jpeg", "png"],
+                key=f"image_{i}",
+                help="고화질 사진을 선택해주세요."
+            )
+            uploaded_images.append(img)
+        
+        with col_thumb:
+            if img is not None:
+                # 썸네일 표시
+                image = Image.open(img)
+                st.image(image, width=100, caption=f"{i}번째 사진")
+    
+    # None이 아닌 이미지들만 필터링
+    uploaded_images = [img for img in uploaded_images if img is not None]
 
     uploaded_audio = st.file_uploader(
         "음성 파일 업로드",
