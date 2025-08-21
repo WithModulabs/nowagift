@@ -236,11 +236,43 @@ def final_producer_tool(state: AgentState):
             st.error("스토리보드 파싱 오류: JSON 형식이 올바르지 않습니다.")
             return {"error_message": "스토리보드 파싱 오류"}
     
-    for scene in storyboard:
+    # 진행률 및 시간 표시를 위한 설정
+    import time
+    total_scenes = len(storyboard)
+    start_time = time.time()
+    
+    # 진행률 표시
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    time_text = st.empty()
+    
+    # 예상 시간 계산 (장면당 평균 3초로 가정)
+    estimated_total_time = total_scenes * 3
+    
+    for scene_idx, scene in enumerate(storyboard):
         try:
+            # 먼저 장면 데이터 추출
             img_index = scene['image_index']
             duration = scene['duration']
             text = scene['text_overlay']
+            
+            # 진행률 업데이트
+            progress = (scene_idx + 1) / total_scenes
+            progress_bar.progress(progress)
+            
+            # 상태 텍스트 업데이트
+            status_text.text(f"장면 {scene_idx + 1}/{total_scenes} 처리 중... ({text[:30]}{'...' if len(text) > 30 else ''})")
+            
+            # 경과 시간 및 예상 시간 계산
+            elapsed_time = time.time() - start_time
+            if scene_idx > 0:
+                avg_time_per_scene = elapsed_time / scene_idx
+                remaining_scenes = total_scenes - scene_idx
+                estimated_remaining_time = avg_time_per_scene * remaining_scenes
+                
+                time_text.text(f"⏱️ 경과 시간: {elapsed_time:.0f}초 | 예상 남은 시간: {estimated_remaining_time:.0f}초")
+            else:
+                time_text.text(f"⏱️ 예상 소요 시간: {estimated_total_time}초")
             
             if img_index == 0:
                 video_clip = VideoFileClip("theme/t01.mp4").with_duration(duration)
@@ -249,7 +281,7 @@ def final_producer_tool(state: AgentState):
             elif img_index == 2:
                 video_clip = VideoFileClip("theme/t01.mp4").with_duration(duration)
             elif img_index == 3:
-                video_clip = VideoFileClip("theme/t01.mp4").with_duration(duration)
+                video_clip = VideoFileClip("theme/t04.mp4").with_duration(duration)
             elif img_index == 4:
                 video_clip = VideoFileClip("theme/t01.mp4").with_duration(duration)
             elif img_index == 5:
@@ -262,7 +294,8 @@ def final_producer_tool(state: AgentState):
 #processed_image_path = add_text_to_image(image_paths[img_index], text, text_overlay_path)
 # 텍스트가 추가된 이미지로 클립 생성
 #img_clip = ImageClip(processed_image_path).set_duration(duration)
- 
+
+
             # 테마 적용
             video_clip = apply_theme_effects(video_clip, duration)                
 
