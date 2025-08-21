@@ -118,11 +118,12 @@ def scenario_writer_agent(state: AgentState):
 
     theme = state["theme"]
     script = state["script"]
-    num_images = len(state["image_paths"])
+    #num_images = len(state["image_paths"])
+    num_images = 7
     total_duration = state["total_duration"]
 
     # LLM 모델 정의
-    llm = ChatOpenAI(model="gpt-4o", temperature=0.5)
+    llm = ChatOpenAI(model="gpt-5", temperature=0.5)
 
     # LLM에게 전달할 프롬프트 템플릿
     prompt = ChatPromptTemplate.from_messages(
@@ -130,9 +131,9 @@ def scenario_writer_agent(state: AgentState):
             (
                 "system",
                 """당신은 감동적인 추모 영상을 위한 시나리오 작가입니다.
-                사용자의 7개 문항으로 구성된 스크립트와 이미지 개수를 바탕으로, 각 장면의 내용과 길이를 JSON 형식의 스토리보드(storyboard)로 만들어야 합니다.
+                사용자의 7개 장면으로 구성된 스크립트와 이미지를 바탕으로, 각 장면의 내용과 길이를 JSON 형식의 스토리보드(storyboard)로 만들어야 합니다.
                 
-                사용자의 스크립트는 7개의 문항으로 구성되어 있습니다:
+                사용자의 스크립트는 기본적으로 7개로 구성되어 있습니다:
                 1. "내가 가장 행복했을 때는"
                 2. 사용자 자유 입력
                 3. 사용자 자유 입력  
@@ -144,9 +145,9 @@ def scenario_writer_agent(state: AgentState):
                 - 전체 영상 길이는 반드시 {total_duration}초가 되어야 합니다.
                 - 각 장면은 10초, 10초, 10초, 5초, 10초, 10초, 12초로 구성됩니다.
                 - 각 장면(scene)은 'image_index', 'duration', 'text_overlay' 키를 가져야 합니다.
-                - 'image_index'는 순서대로 1, 2, 4, 5로 구성됩니다.
+                - 'image_index'는 순서대로 1, 2, 3, 4, 5, 6, 7로 구성됩니다.
                 - 'duration'은 해당 장면의 초 단위 길이입니다. 모든 duration의 합은 {total_duration}이 되어야 합니다.
-                - 'text_overlay'는 해당 장면에 표시될 자막입니다. 사용자의 7개 문항을 각 장면에 자연스럽게 배분하되, 문항의 순서와 의미를 고려해주세요.
+                - 'text_overlay'는 해당 장면에 표시될 자막입니다. 사용자의 7개 을 각 장면에 자연스럽게 배분하되, 문항의 순서와 의미를 고려해주세요.
                 - 테마 '{theme}'의 분위기를 반영해주세요.
                 - 최종 출력은 오직 JSON 객체만 있어야 합니다.
                 """,
@@ -312,27 +313,27 @@ with col1:
     text_inputs = []
     
     # 첫 번째 필드 (고정 - 입력 필드 없음)
-    st.write("**1. 내가 가장 행복했을 때는**")
+    st.write("**장면 #1. 내가 가장 행복했을 때는**")
     text_inputs.append("내가 가장 행복했을 때는")
     
     # 두 번째 필드 (자유입력)
-    text_inputs.append(st.text_input("**2.** 두 번째 문장", key="text2", value="내 나이 76세, 평생 공부하고 싶던, 대학교를 졸업했을 때."))
+    text_inputs.append(st.text_input("**장면 #2.** 두 번째 문장", key="text2", value="내 나이 76세, 평생 공부하고 싶던, 대학교를 졸업했을 때."))
     
     # 세 번째 필드 (자유입력)
-    text_inputs.append(st.text_input("**3.** 세 번째 문장", key="text3", value="응원해 준, 우리 딸 많이 사랑해"))
+    text_inputs.append(st.text_input("**장면 #3.** 세 번째 문장", key="text3", value="응원해 준, 우리 딸 많이 사랑해"))
     
     # 네 번째 필드 (고정 - 입력 필드 없음)
-    st.write("**4. 여보,**")
+    st.write("**장면 #4. 여보,**")
     text_inputs.append("여보,")
     
     # 다섯 번째 필드 (자유입력)
-    text_inputs.append(st.text_input("**5.** 다섯 번째 문장", key="text5", value="평생 나와 살면서 고생 많았어"))
+    text_inputs.append(st.text_input("**장면 #5.** 다섯 번째 문장", key="text5", value="평생 나와 살면서 고생 많았어"))
     
     # 여섯 번째 필드 (자유입력)
-    text_inputs.append(st.text_input("**6.** 여섯 번째 문장", key="text6", value="항상 고맙고, 즐겁고 행복한 삶을 살았으면 좋겠다. 고맙다."))
+    text_inputs.append(st.text_input("**장면 #6.** 여섯 번째 문장", key="text6", value="항상 고맙고, 즐겁고 행복한 삶을 살았으면 좋겠다. 고맙다."))
     
     # 일곱 번째 필드 (고정 - 입력 필드 없음)
-    st.write("**7. 지금, 선물**")
+    st.write("**장면 #7. 지금, 선물**")
     text_inputs.append("지금, 선물")
     
     # 전체 텍스트 조합
@@ -341,28 +342,78 @@ with col1:
     st.subheader("사진 업로드 (4장)")
     uploaded_images = []
     
-    # 4개의 개별 이미지 업로드 필드
-    for i in range(1, 5):
-        st.write(f"**{i}번째 사진**")
-        col_upload, col_thumb = st.columns([2, 1])
-        
-        with col_upload:
-            img = st.file_uploader(
-                f"{i}번째 사진 선택",
-                type=["jpg", "jpeg", "png"],
-                key=f"image_{i}",
-                help="고화질 사진을 선택해주세요."
-            )
-            uploaded_images.append(img)
-        
-        with col_thumb:
-            if img is not None:
-                # 썸네일 표시
-                image = Image.open(img)
-                st.image(image, width=100, caption=f"{i}번째 사진")
+    # 1번째 이미지 업로드 필드
+    st.write("**장면 #2 사진**")
+    col_upload1, col_thumb1 = st.columns([2, 1])
     
-    # None이 아닌 이미지들만 필터링
-    uploaded_images = [img for img in uploaded_images if img is not None]
+    with col_upload1:
+        img1 = st.file_uploader(
+            "장면 #2 사진 선택",
+            type=["jpg", "jpeg", "png"],
+            key="image_1",
+            help="고화질 사진을 선택해주세요."
+        )
+    
+    with col_thumb1:
+        if img1 is not None:
+            image1 = Image.open(img1)
+            st.image(image1, width=100, caption="장면 #2 사진")
+
+    # 2번째 이미지 업로드 필드
+    st.write("**장면 #3 사진**")
+    col_upload2, col_thumb2 = st.columns([2, 1])
+    
+    with col_upload2:
+        img2 = st.file_uploader(
+            "장면 #3 사진 선택",
+            type=["jpg", "jpeg", "png"],
+            key="image_2",
+            help="고화질 사진을 선택해주세요."
+        )
+    
+    with col_thumb2:
+        if img2 is not None:
+            image2 = Image.open(img2)
+            st.image(image2, width=100, caption="장면 #3 사진")
+
+    # 3번째 이미지 업로드 필드
+    st.write("**장면 #5 사진**")
+    col_upload3, col_thumb3 = st.columns([2, 1])
+    
+    with col_upload3:
+        img3 = st.file_uploader(
+            "장면 #5 사진 선택",
+            type=["jpg", "jpeg", "png"],
+            key="image_3",
+            help="고화질 사진을 선택해주세요."
+        )
+    
+    with col_thumb3:
+        if img3 is not None:
+            image3 = Image.open(img3)
+            st.image(image3, width=100, caption="장면 #5 사진")
+    
+    # 4번째 이미지 업로드 필드
+    st.write("**장면 #6 사진**")
+    col_upload4, col_thumb4 = st.columns([2, 1])
+    
+    with col_upload4:
+        img4 = st.file_uploader(
+            "장면 #6 사진 선택",
+            type=["jpg", "jpeg", "png"],
+            key="image_4",
+            help="고화질 사진을 선택해주세요."
+        )
+    
+    with col_thumb4:
+        if img4 is not None:
+            image4 = Image.open(img4)
+            st.image(image4, width=100, caption="장면 #6 사진")
+    
+    # 업로드된 이미지들을 리스트에 추가 (None이 아닌 것만)
+    for img in [img1, img2, img3, img4]:
+        if img is not None:
+            uploaded_images.append(img)
 
     uploaded_audio = st.file_uploader(
         "음성 파일 업로드",
