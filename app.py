@@ -320,9 +320,9 @@ def final_producer_tool(state: AgentState):
     if audio_path:
         audio_clip = AudioFileClip(audio_path)
         if audio_clip.duration > total_duration:
-            audio_clip = audio_clip.subclip(0, total_duration)
+            audio_clip = audio_clip.subclipped(0, total_duration)
         # 영상에 오디오 삽입
-        final_clip = final_clip.set_audio(audio_clip)
+        final_clip = final_clip.with_audio(audio_clip)
 
     # 최종 영상 파일로 저장
     output_filename = f"temp/final_video_{uuid.uuid4()}.mp4"
@@ -518,7 +518,7 @@ with col2:
                     theme=theme,
                     script=script,
                     image_paths=temp_image_paths,
-                    audio_path=temp_audio_path,
+                    audio_path="theme/m0.mp3",
                     total_duration=70, # 총 영상 길이 70초 고정
                     storyboard=None,
                     final_video_path=None,
