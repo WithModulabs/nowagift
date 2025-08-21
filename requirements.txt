@@ -10,6 +10,7 @@ python-dotenv==1.1.1
 tqdm==4.67.1
 streamlit
 langchain
+langchain-openai
 langgraph
 openai
 requests

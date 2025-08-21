@@ -57,6 +57,20 @@ uv add -r requirements.txt
 uv pip freeze > requirements.txt
 ```
 
+## Streamlit 앱 실행
+
+### 로컬 실행
+```bash
+uv run streamlit run app.py
+```
+
+### 서버 실행 (외부 접속 허용)
+```bash
+uv run streamlit run app.py --server.address 0.0.0.0 --server.port 8501
+```
+
+**현재 서버 주소: http://15.165.13.49:8501**
+
 ## 백그라운드에서 Streamlit 앱 실행 (tmux 사용)
 
 1. tmux 세션 시작
@@ -70,7 +84,7 @@ uv pip freeze > requirements.txt
 		 ```
 	 - 서버(외부 접속 허용)에서 실행:
 		 ```bash
-		 uv run streamlit run app.py --server.address 0.0.0.0
+		 uv run streamlit run app.py --server.address 0.0.0.0 --server.port 8501
 		 ```
 
 3. tmux 세션에서 빠져나오기 (앱은 계속 실행됨)
