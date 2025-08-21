@@ -2,7 +2,7 @@ import streamlit as st
 import os
 import uuid
 from PIL import Image, ImageDraw, ImageFont
-from moviepy.editor import (
+from moviepy import (
     ImageClip,
     AudioFileClip,
     CompositeVideoClip,

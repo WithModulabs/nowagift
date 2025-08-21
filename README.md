@@ -64,9 +64,14 @@ uv pip freeze > requirements.txt
 	tmux new -s streamlit
 	```
 2. Streamlit 앱 실행
-	```bash
-	streamlit run your_app.py
-	```
+	 - 로컬에서 실행:
+		 ```bash
+		 uv run streamlit run your_app.py
+		 ```
+	 - 서버(외부 접속 허용)에서 실행:
+		 ```bash
+		 uv run streamlit run app.py --server.address 0.0.0.0
+		 ```
 
 3. tmux 세션에서 빠져나오기 (앱은 계속 실행됨)
 	- Ctrl+b 누른 후 d
