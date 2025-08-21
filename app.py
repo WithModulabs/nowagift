@@ -4,10 +4,10 @@ import uuid
 from PIL import Image, ImageDraw, ImageFont
 from moviepy import (
     ImageClip,
+    VideoFileClip,
     AudioFileClip,
     CompositeVideoClip,
-    concatenate_videoclips,
-    vfx
+    concatenate_videoclips
 )
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
@@ -173,8 +173,14 @@ def scenario_writer_agent(state: AgentState):
             "script": script,
         })
         
+        # storyboard_data가 None인지 확인
+        if storyboard_data is None:
+            error_msg = "OpenAI API로부터 응답을 받지 못했습니다. API 키를 확인해주세요."
+            st.error(error_msg)
+            return {"error_message": error_msg}
+        
         # 'storyboard' 키가 있는지 확인하고 추출
-        if 'storyboard' in storyboard_data:
+        if isinstance(storyboard_data, dict) and 'storyboard' in storyboard_data:
             storyboard = storyboard_data['storyboard']
         else: # 가끔 LLM이 최상위 키 없이 바로 리스트를 반환할 때를 대비
             storyboard = storyboard_data
@@ -197,50 +203,69 @@ def final_producer_tool(state: AgentState):
     """스토리보드를 바탕으로 실제 영상 파일을 제작합니다."""
     st.write("### 🎬 최종 제작자 에이전트")
     st.info("기획된 스토리보드에 따라 사진, 자막, 음성을 합쳐 최종 영상을 만들고 있습니다...")
-    return {"final_video_path": "ok"}
     
     storyboard = state.get("storyboard")
     image_paths = state.get("image_paths")
     audio_path = state.get("audio_path")
     total_duration = state.get("total_duration")
 
-    if not storyboard or not image_paths:
-        error_msg = "영상 제작에 필요한 정보(스토리보드, 이미지)가 부족합니다."
-        st.error(error_msg)
-        return {"error_message": error_msg}
+    #if not storyboard or not image_paths:
+    #    error_msg = "영상 제작에 필요한 정보(스토리보드, 이미지)가 부족합니다."
+    #    st.error(error_msg)
+    #    return {"error_message": error_msg}
 
     clips = []
     
     # 테마별 효과 설정
     # 이 부분을 확장하여 더 다양한 효과를 추가할 수 있습니다.
     def apply_theme_effects(clip, duration):
-        theme = state['theme']
-        if theme == "따뜻한 추억 (Warm Memories)":
-            # 1.2배로 천천히 줌 인 되는 효과
-            return clip.resize(lambda t: 1 + 0.2 * t / duration).fx(vfx.fadein, 1).fx(vfx.fadeout, 1)
-        elif theme == "차분한 회상 (Calm Reflection)":
-            # 흑백 처리 및 페이드 효과
-            return clip.fx(vfx.blackwhite).fx(vfx.fadein, 1.5).fx(vfx.fadeout, 1.5)
-        else: # "삶의 축하 (Celebrating a Life)" 및 기본
-            # 페이드 효과만 적용
-            return clip.fx(vfx.fadein, 1).fx(vfx.fadeout, 1)
+        # Effects 사용을 제거하고 기본 클립 반환
+        return clip
 
 
+    # 디버깅을 위해 storyboard 타입과 내용 확인
+    st.write(f"Storyboard type: {type(storyboard)}")
+    st.write(f"Storyboard content: {storyboard}")
+    
+    # storyboard가 문자열인 경우 JSON으로 파싱
+    if isinstance(storyboard, str):
+        import json
+        try:
+            storyboard = json.loads(storyboard)
+        except json.JSONDecodeError:
+            st.error("스토리보드 파싱 오류: JSON 형식이 올바르지 않습니다.")
+            return {"error_message": "스토리보드 파싱 오류"}
+    
     for scene in storyboard:
         try:
             img_index = scene['image_index']
             duration = scene['duration']
             text = scene['text_overlay']
             
-            # 텍스트가 추가된 이미지 생성
-            text_overlay_path = f"temp/text_overlay_{uuid.uuid4()}.jpg"
-            processed_image_path = add_text_to_image(image_paths[img_index], text, text_overlay_path)
-            
-            # 텍스트가 추가된 이미지로 클립 생성
-            img_clip = ImageClip(processed_image_path).set_duration(duration)
+            if img_index == 0:
+                video_clip = VideoFileClip("theme/t01.mp4").with_duration(duration)
+            elif img_index == 1:
+                video_clip = VideoFileClip("theme/t01.mp4").with_duration(duration)
+            elif img_index == 2:
+                video_clip = VideoFileClip("theme/t01.mp4").with_duration(duration)
+            elif img_index == 3:
+                video_clip = VideoFileClip("theme/t01.mp4").with_duration(duration)
+            elif img_index == 4:
+                video_clip = VideoFileClip("theme/t01.mp4").with_duration(duration)
+            elif img_index == 5:
+                video_clip = VideoFileClip("theme/t01.mp4").with_duration(duration)
+            elif img_index == 6:
+                video_clip = VideoFileClip("theme/ending.mp4").with_duration(duration)
 
+# 텍스트가 추가된 이미지 생성
+#text_overlay_path = f"temp/text_overlay_{uuid.uuid4()}.jpg"
+#processed_image_path = add_text_to_image(image_paths[img_index], text, text_overlay_path)
+# 텍스트가 추가된 이미지로 클립 생성
+#img_clip = ImageClip(processed_image_path).set_duration(duration)
+ 
             # 테마 적용
-            video_clip = apply_theme_effects(img_clip, duration)
+            video_clip = apply_theme_effects(video_clip, duration)                
+
             clips.append(video_clip)
 
         except IndexError:
@@ -292,7 +317,7 @@ app = workflow.compile()
 # --- 5. Streamlit UI 구성 ---
 st.set_page_config(page_title="🕊️ 추모 영상 제작 에이전트", layout="wide")
 
-st.title("🕊️ 70초 추모 영상 제작 에이전트")
+st.title("🕊️ 추모 영상 제작 에이전트")
 st.markdown("고인을 기리는 소중한 마음을 담아, 세상에 하나뿐인 영상을 만들어 드립니다.")
 st.markdown("---")
 
@@ -431,8 +456,8 @@ with col2:
         filled_inputs = [text for text in text_inputs if len(text.strip()) > 0]
         if len(filled_inputs) < 3:
             validation_errors.append("최소 3개 이상의 문항을 입력해주세요.")
-        if not uploaded_images:
-            validation_errors.append("사진을 업로드해주세요.")
+        #if not uploaded_images:
+        #    validation_errors.append("사진을 업로드해주세요.")
         
         if validation_errors:
             for error in validation_errors:
