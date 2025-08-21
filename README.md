@@ -18,11 +18,28 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
-### 3. .env 파일 생성
+### 3. 환경 변수 설정
+
+#### 로컬 개발 환경
 프로젝트 루트에 `.env` 파일을 생성하고 아래와 같이 입력하세요:
 ```
 AK=your_access_key
 SK=your_secret_key
+HEYGEN_API_KEY=your_heygen_api_key
+OPENAI_API_KEY=your_openai_api_key
+```
+
+#### AWS EC2 서버 환경
+`.bashrc` 파일에 export 명령어로 환경 변수를 설정하세요:
+```bash
+# ~/.bashrc에 추가
+export AK=your_access_key
+export SK=your_secret_key
+export HEYGEN_API_KEY=your_heygen_api_key
+export OPENAI_API_KEY=your_openai_api_key
+
+# 설정 적용
+source ~/.bashrc
 ```
 
 ## 예제 실행 방법
