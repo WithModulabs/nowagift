@@ -1,4 +1,3 @@
-
 # nowagift
 
 ## 프로젝트 개요
@@ -115,6 +114,23 @@ uv run streamlit run app.py --server.address 0.0.0.0 --server.port 8501
 	- 실행 중인 streamlit 앱을 중지: Ctrl+C
 	- tmux 세션 종료: exit 입력 또는 Ctrl+d
 
+
+## 동영상 제작시에 서버 메모리 부족하여 스왑 파일 추가하여 해결
+
+서버에서 Streamlit 등 앱이 자주 죽는다면 메모리 부족일 수 있습니다. 아래 명령어로 4GB 스왑 파일을 추가해보세요:
+
+```bash
+sudo fallocate -l 4G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+```
+
+재부팅 후에도 스왑이 유지되도록 아래 명령어로 /etc/fstab에 추가하세요:
+
+```bash
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
 
 
 
