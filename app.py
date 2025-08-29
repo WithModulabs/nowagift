@@ -91,9 +91,10 @@ def scenario_writer_agent(state: AgentState):
                 
                 - 전체 영상 길이는 반드시 {total_duration}초가 되어야 합니다.
                 - 각 장면은 10초, 10초, 10초, 5초, 10초, 10초, 12초로 구성됩니다.
-                - 각 장면(scene)은 'image_index', 'duration' 키를 가져야 합니다.
+                - 각 장면(scene)은 'image_index', 'duration', 'subtitle' 키만 가져야 합니다.
                 - 'image_index'는 순서대로 1, 2, 3, 4, 5, 6, 7로 구성됩니다.
                 - 'duration'은 해당 장면의 초 단위 길이입니다. 모든 duration의 합은 {total_duration}이 되어야 합니다.
+                - narration, visual_cue, music_cue 등의 추가 필드는 절대 생성하지 마세요.
                 - 테마 '{theme}'의 분위기를 반영해주세요.
                 - 최종 출력은 오직 JSON 객체만 있어야 합니다.
                 """,
@@ -163,6 +164,16 @@ def subtitle_creator_agent(state: AgentState):
         error_msg = "자막 생성에 필요한 정보(스토리보드, 스크립트)가 부족합니다."
         st.error(error_msg)
         return {"error_message": error_msg}
+    
+    # 디버깅을 위해 storyboard 타입과 내용 확인
+    st.write(f"Storyboard type in subtitle creator: {type(storyboard)}")
+    st.write(f"Storyboard content: {storyboard}")
+    
+    # storyboard가 리스트가 아닌 경우 처리
+    if not isinstance(storyboard, list):
+        error_msg = f"스토리보드가 예상된 리스트 형식이 아닙니다. 현재 타입: {type(storyboard)}"
+        st.error(error_msg)
+        return {"error_message": error_msg}
 
     subtitle_clips = []
     
@@ -176,25 +187,35 @@ def subtitle_creator_agent(state: AgentState):
     for idx, scene in enumerate(storyboard):
         try:
             text = script_lines[idx].strip()
+            
+            # scene이 딕셔너리인지 확인
+            if not isinstance(scene, dict):
+                st.error(f"장면 {idx+1}이 딕셔너리가 아닙니다. 타입: {type(scene)}, 내용: {scene}")
+                continue
+            
+            if 'duration' not in scene:
+                st.error(f"장면 {idx+1}에 'duration' 키가 없습니다. 키들: {list(scene.keys())}")
+                continue
+                
             duration = scene['duration']
 
             # TextClip을 사용하여 투명 배경의 자막 생성
             subtitle_clip = TextClip(
-                txt=text,
-                fontsize=40,
+                text=text,
+                font_size=40,
                 color='white',
                 font=font_path,
                 stroke_color='black',
                 stroke_width=2,
                 transparent=True
-            ).set_duration(duration)
+            ).with_duration(duration)
             
             # 자막 위치 조건부 설정
             # 1, 4, 7번째 필드는 중앙, 나머지는 하단 중앙
             if (idx + 1) in [1, 4, 7]:
-                subtitle_clip = subtitle_clip.set_position("center")
+                subtitle_clip = subtitle_clip.with_position("center")
             else:
-                subtitle_clip = subtitle_clip.set_position(("center", "bottom"))
+                subtitle_clip = subtitle_clip.with_position(("center", "bottom"))
             
             subtitle_clips.append(subtitle_clip)
         except IndexError:
@@ -299,13 +320,13 @@ def final_producer_agent(state: AgentState):
                 video_clip = VideoFileClip("resources/theme/t01.mp4").with_duration(duration)
             elif img_index == 2:
                 if len(image_paths) > 0:
-                    video_clip = ImageClip(image_paths[0]).set_duration(duration)
+                    video_clip = ImageClip(image_paths[0]).with_duration(duration)
                 else:
                     st.warning("장면 2에 필요한 사진이 없어 기본 클립을 사용합니다.")
                     video_clip = VideoFileClip("resources/theme/t01.mp4").with_duration(duration)
             elif img_index == 3:
                 if len(image_paths) > 1:
-                    video_clip = ImageClip(image_paths[1]).set_duration(duration)
+                    video_clip = ImageClip(image_paths[1]).with_duration(duration)
                 else:
                     st.warning("장면 3에 필요한 사진이 없어 기본 클립을 사용합니다.")
                     video_clip = VideoFileClip("resources/theme/t01.mp4").with_duration(duration)
@@ -313,13 +334,13 @@ def final_producer_agent(state: AgentState):
                 video_clip = VideoFileClip("resources/theme/t04.mp4").with_duration(duration)
             elif img_index == 5:
                 if len(image_paths) > 2:
-                    video_clip = ImageClip(image_paths[2]).set_duration(duration)
+                    video_clip = ImageClip(image_paths[2]).with_duration(duration)
                 else:
                     st.warning("장면 5에 필요한 사진이 없어 기본 클립을 사용합니다.")
                     video_clip = VideoFileClip("resources/theme/t01.mp4").with_duration(duration)
             elif img_index == 6:
                 if len(image_paths) > 3:
-                    video_clip = ImageClip(image_paths[3]).set_duration(duration)
+                    video_clip = ImageClip(image_paths[3]).with_duration(duration)
                 else:
                     st.warning("장면 6에 필요한 사진이 없어 기본 클립을 사용합니다.")
                     video_clip = VideoFileClip("resources/theme/t01.mp4").with_duration(duration)
@@ -330,7 +351,7 @@ def final_producer_agent(state: AgentState):
                 video_clip = VideoFileClip("resources/theme/t01.mp4").with_duration(duration)
             
             if video_clip:
-                video_clip = video_clip.resize(height=1080)
+                video_clip = video_clip.resized(height=1080)
                 clips.append(video_clip)
 
         # 테마 적용
@@ -350,7 +371,7 @@ def final_producer_agent(state: AgentState):
     final_base_clip = concatenate_videoclips(clips, method="compose")
     
     if subtitle_clip:
-        final_clip = CompositeVideoClip([final_base_clip.with_duration(total_duration), subtitle_clip.set_duration(total_duration)])
+        final_clip = CompositeVideoClip([final_base_clip.with_duration(total_duration), subtitle_clip.with_duration(total_duration)])
     else:
         final_clip = final_base_clip.with_duration(total_duration)
     
