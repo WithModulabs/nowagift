@@ -1,6 +1,10 @@
 import requests
 import os
 from dotenv import load_dotenv
+import time
+import base64
+
+# Heygen API: image generation
 
 class HeygenAPI:
     def __init__(self, api_key: str):
@@ -8,7 +12,6 @@ class HeygenAPI:
         self.base_url = "https://api.heygen.com/v2/photo_avatar"
 
     def generate_avatar_photo(self, image_path: str, name: str, age: str, gender: str, ethnicity: str, orientation: str, pose: str, style: str, appearance: str):
-        import base64
         url = f"{self.base_url}/photo/generate"
         with open(image_path, "rb") as img_file:
             img_base64 = base64.b64encode(img_file.read()).decode("utf-8")
@@ -41,11 +44,13 @@ class HeygenAPI:
         return response.json()
 
 if __name__ == "__main__":
-    # .env 파일에서 환경 변수 로드
-    load_dotenv()
-    api_key = os.getenv("HEYGEN_API_KEY")  # .env 파일에 HEYGEN_API_KEY=... 추가
+    load_dotenv()  # .env 파일에서 환경 변수 로드
+    
+    api_key = os.getenv("HEYGEN_API_KEY")  # .env 파일에 HEYGEN_API_KEY 추가
     print("API Key:", api_key)
-    image_path = "images/2.png"  # 첨부할 사진 경로
+    
+    image_path = "resources/image/2.png"  # 첨부할 사진 경로
+    
     heygen = HeygenAPI(api_key)
     result = heygen.generate_avatar_photo(
         image_path=image_path,
@@ -59,17 +64,20 @@ if __name__ == "__main__":
         appearance="A headshot of a casually dressed person. A mild smile and a relaxed expression. The background is made cleanly white. retro style [Landscape, Upper Body, Vintage/Realistic]"
     )
     print(result)
+    
     # 생성 ID로 상태 확인 (폴링)
-    import time
     if result.get("data") and result["data"].get("generation_id"):
         generation_id = result["data"]["generation_id"]
         while True:
             status = heygen.check_generation_status(generation_id)
             print(status)
+            
             if status.get("data") and status["data"].get("status") == "success":
                 print("완료!")
+                
                 # 이미지 다운로드
                 image_urls = status["data"].get("image_url_list", [])
+                
                 for idx, img_url in enumerate(image_urls):
                     img_resp = requests.get(img_url)
                     if img_resp.status_code == 200:
