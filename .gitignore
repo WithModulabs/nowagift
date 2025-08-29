@@ -2,3 +2,5 @@ venv/
 .env
 *.jpg
 temp/
+*.mp4
+
