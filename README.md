@@ -5,6 +5,20 @@ Kling AI NEW API를 활용한 이미지 생성 예제 및 JWT 기반 인증 토�
 
 ## 환경 준비
 
+### uv 설치
+
+아래 명령어로 uv를 설치할 수 있습니다:
+
+- Windows
+	```powershell
+	pip install uv
+	```
+- Linux/macOS
+	```bash
+	pip install uv
+	```
+
+
 ### 1. 파이썬 가상환경(venv) 생성 및 활성화
 윈도우 기준 명령어:
 ```
