@@ -44,7 +44,7 @@ class AgentState(TypedDict):
     audio_path: str
     total_duration: int
     storyboard: List[Dict]  # 시나리오 작가의 결과물 (이미지, 텍스트, 길이 등)
-    subtitle_clip: VideoFileClip  # 자막이 포함된 클립 객체
+    subtitle_clip: List[VideoFileClip]  # 자막이 포함된 클립 리스트
     final_video_path: str   # 최종 제작자의 결과물 (완성된 영상 경로)
     error_message: str      # 오류 발생 시 메시지 저장
 
@@ -186,6 +186,10 @@ def subtitle_creator_agent(state: AgentState):
     
     for idx, scene in enumerate(storyboard):
         try:
+            if (idx + 1) in [1, 4, 7]:
+                subtitle_clips.append(None)
+                continue
+            
             text = script_lines[idx].strip()
             
             # scene이 딕셔너리인지 확인
@@ -199,43 +203,54 @@ def subtitle_creator_agent(state: AgentState):
                 
             duration = scene['duration']
 
-            # TextClip을 사용하여 투명 배경의 자막 생성
-            subtitle_clip = TextClip(
-                text=text,
-                font_size=40,
-                color='white',
-                font=font_path,
-                stroke_color='black',
-                stroke_width=2,
-                transparent=True
-            ).with_duration(duration)
+            char_clips = []
             
-            # 자막 위치 조건부 설정
-            # 1, 4, 7번째 필드는 중앙, 나머지는 하단 중앙
-            if (idx + 1) in [1, 4, 7]:
-                subtitle_clip = subtitle_clip.with_position("center")
-            else:
-                subtitle_clip = subtitle_clip.with_position(("center", "bottom"))
+            # 글자당 표시되는 시간 계산
+            char_display_time = duration / len(text) if len(text) > 0 else 0
+            
+            # 각 글자별로 개별 TextClip 생성 및 타이밍 설정
+            for char_index, char in enumerate(text):
+                char_clip = TextClip(
+                    text=char,
+                    font_size=40,
+                    color='white',
+                    font=font_path,
+                    stroke_color='black',
+                    stroke_width=2,
+                    transparent=True
+                )
+    
+                # 글자 시작 시간 설정
+                char_clip = char_clip.with_duration(char_display_time).with_start(char_index * char_display_time)
+                
+                char_clips.append(char_clip)
+            
+            # 모든 글자 클립을 CompositeVideoClip으로 결합
+            subtitle_clip = CompositeVideoClip(char_clips, size=(1920, 1080))
+            
+            # 전체 자막 클립의 길이와 위치 설정
+            subtitle_clip = subtitle_clip.with_duration(duration)
+            subtitle_clip = subtitle_clip.with_position(("center", "bottom"))
             
             subtitle_clips.append(subtitle_clip)
+            
         except IndexError:
             st.warning(f"스크립트 문항이 부족합니다. 장면 {idx+1}의 자막은 건너뜁니다.")
+            subtitle_clips.append(None)
             continue
         except Exception as e:
             st.error(f"자막 생성 중 오류 발생: {e}")
             return {"error_message": f"자막 생성 중 오류 발생: {e}"}
 
-    if not subtitle_clips:
+    if not any(subtitle_clips): 
         error_msg = "자막을 구성할 장면이 하나도 없습니다."
         st.error(error_msg)
         return {"error_message": error_msg}
-
-    final_subtitle_clip = concatenate_videoclips(subtitle_clips, method="compose")
     
     st.success("자막 클립 생성 완료!")
     
-    # 클립 객체 자체를 반환
-    return {"subtitle_clip": final_subtitle_clip}
+    # 각 장면별로 생성된 클립들의 리스트를 반환
+    return {"subtitle_clips": subtitle_clips}
 
 
 # 3.3. 최종 제작자 에이전트 (Final Producer Agent) - 영상 생성 도구
@@ -248,21 +263,13 @@ def final_producer_agent(state: AgentState):
     image_paths = state.get("image_paths")
     audio_path = state.get("audio_path")
     total_duration = state.get("total_duration")
-    subtitle_clip = state.get("subtitle_clip")
-
-    #if not storyboard or not image_paths:
-    #    error_msg = "영상 제작에 필요한 정보(스토리보드, 이미지)가 부족합니다."
-    #    st.error(error_msg)
-    #    return {"error_message": error_msg}
-
-    clips = []
+    subtitle_clips = state.get("subtitle_clips")
     
     # 테마별 효과 설정
     # 이 부분을 확장하여 더 다양한 효과를 추가할 수 있습니다.
     def apply_theme_effects(clip, duration):
         # Effects 사용을 제거하고 기본 클립 반환
         return clip
-
 
     # 디버깅을 위해 storyboard 타입과 내용 확인
     st.write(f"Storyboard type: {type(storyboard)}")
@@ -276,6 +283,9 @@ def final_producer_agent(state: AgentState):
         except json.JSONDecodeError:
             st.error("스토리보드 파싱 오류: JSON 형식이 올바르지 않습니다.")
             return {"error_message": "스토리보드 파싱 오류"}
+    
+    # 각 장면별로 기본 영상과 자막을 합성할 리스트
+    combined_clips = []
     
     # 진행률 및 시간 표시를 위한 설정
     total_scenes = len(storyboard)
@@ -352,7 +362,17 @@ def final_producer_agent(state: AgentState):
             
             if video_clip:
                 video_clip = video_clip.resized(height=1080)
-                clips.append(video_clip)
+            
+            final_scene_clip = video_clip
+            
+            # 삭제: 1, 4, 7번째 자막이 None이므로, 해당 클립이 있을 때만 합성
+            if subtitle_clips and len(subtitle_clips) > scene_idx and subtitle_clips[scene_idx] is not None:
+                current_subtitle_clip = subtitle_clips[scene_idx]
+                current_subtitle_clip = current_subtitle_clip.with_size(video_clip.size)
+                final_scene_clip = CompositeVideoClip([video_clip, current_subtitle_clip])
+            
+            if final_scene_clip:
+                combined_clips.append(final_scene_clip)
 
         # 테마 적용
         #video_clip = apply_theme_effects(video_clip, duration)                
@@ -362,27 +382,22 @@ def final_producer_agent(state: AgentState):
             st.error(f"장면 생성 중 오류 발생: {e}")
             return {"error_message": f"장면 생성 중 오류 발생: {e}"}
 
-    if not clips:
+    if not combined_clips:
         error_msg = "영상을 구성할 장면이 하나도 없습니다."
         st.error(error_msg)
         return {"error_message": error_msg}
 
     # 모든 영상 클립을 하나로 연결
-    final_base_clip = concatenate_videoclips(clips, method="compose")
-    
-    if subtitle_clip:
-        final_clip = CompositeVideoClip([final_base_clip.with_duration(total_duration), subtitle_clip.with_duration(total_duration)])
-    else:
-        final_clip = final_base_clip.with_duration(total_duration)
+    final_video_clip = concatenate_videoclips(combined_clips, method="compose")
     
     if audio_path:
         audio_clip = AudioFileClip(audio_path)
-        if audio_clip.duration > total_duration:
-            audio_clip = audio_clip.subclipped(0, total_duration)
-        final_clip = final_clip.with_audio(audio_clip)
+        if audio_clip.duration > final_video_clip.duration:
+            audio_clip = audio_clip.subclipped(0, final_video_clip.duration)
+        final_video_clip = final_video_clip.with_audio(audio_clip)
 
     output_filename = f"temp/final_video_{uuid.uuid4()}.mp4"
-    final_clip.write_videofile(output_filename, codec="libx264", audio_codec="aac", fps=24)
+    final_video_clip.write_videofile(output_filename, codec="libx264", audio_codec="aac", fps=24)
     
     st.success("영상 제작 완료!")
     return {"final_video_path": output_filename}
@@ -584,7 +599,7 @@ with col2:
                     storyboard=None,
                     final_video_path=None,
                     error_message=None,
-                    subtitle_clip=None
+                    subtitle_clips=None
                 )
                 
                 # 3. LangGraph 실행
