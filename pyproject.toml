@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "colorama==0.4.6",
     "decorator==5.2.1",
+    "google-genai>=1.32.0",
     "imageio==2.37.0",
     "imageio-ffmpeg==0.6.0",
     "langchain-openai>=0.3.30",
