@@ -44,7 +44,7 @@ class AgentState(TypedDict):
     audio_path: str
     total_duration: int
     storyboard: List[Dict]  # 시나리오 작가의 결과물 (이미지, 텍스트, 길이 등)
-    subtitle_clip: List[VideoFileClip]  # 자막이 포함된 클립 리스트
+    subtitle_clips: List[VideoFileClip]  # 자막이 포함된 클립 리스트
     final_video_path: str   # 최종 제작자의 결과물 (완성된 영상 경로)
     error_message: str      # 오류 발생 시 메시지 저장
 
@@ -175,14 +175,14 @@ def subtitle_creator_agent(state: AgentState):
         st.error(error_msg)
         return {"error_message": error_msg}
 
-    subtitle_clips = []
-    
     # 폰트 경로 설정 
     font_path = "resources/font/movie-font.ttf"
     if not os.path.exists(font_path):
         error_msg = f"지정된 폰트 파일을 찾을 수 없습니다: {font_path}"
         st.error(error_msg)
         return {"error_message": error_msg}
+    
+    subtitle_clips = []
     
     for idx, scene in enumerate(storyboard):
         try:
@@ -192,7 +192,6 @@ def subtitle_creator_agent(state: AgentState):
             
             text = script_lines[idx].strip()
             
-            # scene이 딕셔너리인지 확인
             if not isinstance(scene, dict):
                 st.error(f"장면 {idx+1}이 딕셔너리가 아닙니다. 타입: {type(scene)}, 내용: {scene}")
                 continue
@@ -202,36 +201,28 @@ def subtitle_creator_agent(state: AgentState):
                 continue
                 
             duration = scene['duration']
+            
+            # 기본 TextClip 생성
+            main_text_clip = TextClip(
+                text=text,
+                font_size=40,
+                color='white',
+                font=font_path,
+                transparent=True
+            ).with_duration(duration).with_position(("center", 810), relative=False)
 
-            char_clips = []
+            # 그림자 효과를 위한 TextClip 생성
+            shadow_text_clip = TextClip(
+                text=text,
+                font_size=40,
+                color='black',
+                font=font_path,
+                transparent=True
+            ).with_duration(duration).with_position(("center", 815), relative=False)  
             
-            # 글자당 표시되는 시간 계산
-            char_display_time = duration / len(text) if len(text) > 0 else 0
-            
-            # 각 글자별로 개별 TextClip 생성 및 타이밍 설정
-            for char_index, char in enumerate(text):
-                char_clip = TextClip(
-                    text=char,
-                    font_size=40,
-                    color='white',
-                    font=font_path,
-                    stroke_color='black',
-                    stroke_width=2,
-                    transparent=True
-                )
-    
-                # 글자 시작 시간 설정
-                char_clip = char_clip.with_duration(char_display_time).with_start(char_index * char_display_time)
-                
-                char_clips.append(char_clip)
-            
-            # 모든 글자 클립을 CompositeVideoClip으로 결합
-            subtitle_clip = CompositeVideoClip(char_clips, size=(1920, 1080))
-            
-            # 전체 자막 클립의 길이와 위치 설정
-            subtitle_clip = subtitle_clip.with_duration(duration)
-            subtitle_clip = subtitle_clip.with_position(("center", "bottom"))
-            
+            # 두 클립을 합쳐서 하나의 자막 클립으로 만듦
+            subtitle_clip = CompositeVideoClip([shadow_text_clip, main_text_clip], size=(1920, 1080))
+        
             subtitle_clips.append(subtitle_clip)
             
         except IndexError:
@@ -368,7 +359,6 @@ def final_producer_agent(state: AgentState):
             # 삭제: 1, 4, 7번째 자막이 None이므로, 해당 클립이 있을 때만 합성
             if subtitle_clips and len(subtitle_clips) > scene_idx and subtitle_clips[scene_idx] is not None:
                 current_subtitle_clip = subtitle_clips[scene_idx]
-                current_subtitle_clip = current_subtitle_clip.with_size(video_clip.size)
                 final_scene_clip = CompositeVideoClip([video_clip, current_subtitle_clip])
             
             if final_scene_clip:
@@ -599,7 +589,7 @@ with col2:
                     storyboard=None,
                     final_video_path=None,
                     error_message=None,
-                    subtitle_clips=None
+                    subtitle_clips=[]
                 )
                 
                 # 3. LangGraph 실행
