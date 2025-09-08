@@ -103,7 +103,7 @@ if result.get("choices"):
                 with open(filename, "wb") as f:
                     f.write(image_data)
                 
-                print(f"제주도 해변 비키니 이미지가 '{filename}'로 저장되었습니다!")
+                print(f"제주도 이미지가 '{filename}'로 저장되었습니다!")
             else:
                 print("Unexpected image URL format:", image_url)
     else:
