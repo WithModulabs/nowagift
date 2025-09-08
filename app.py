@@ -23,11 +23,15 @@ from langgraph.graph import StateGraph, END
 load_dotenv()
 
 # --- 1. 기본 설정 및 API 키 입력 ---
-# .env 파일에서 OpenAI API 키 로드
+# .env 파일에서 OpenRouter API 키 로드
 
-openai_api_key = os.getenv("OPENAI_API_KEY")
-if openai_api_key:
-    os.environ["OPENAI_API_KEY"] = openai_api_key
+openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
+if openrouter_api_key:
+    os.environ["OPENAI_API_KEY"] = openrouter_api_key
+else:
+    raise RuntimeError(
+        "Missing OPENROUTER_API_KEY. Set it in your environment or .env file (OPENROUTER_API_KEY=...)."
+    )
 
 # 임시 파일들을 저장할 디렉토리 생성
 if not os.path.exists("temp"):
@@ -70,7 +74,15 @@ def scenario_writer_agent(state: AgentState):
     total_duration = state["total_duration"]
 
     # LLM 모델 정의
-    llm = ChatOpenAI(model="gpt-5", temperature=0.5)
+    llm = ChatOpenAI(
+        model="openai/gpt-5-nano",
+        temperature=0.5,
+        base_url="https://openrouter.ai/api/v1",
+        default_headers={
+            "HTTP-Referer": os.getenv("YOUR_SITE_URL", ""),
+            "X-Title": os.getenv("YOUR_SITE_NAME", ""),
+        }
+    )
 
     # LLM에게 전달할 프롬프트 템플릿
     prompt = ChatPromptTemplate.from_messages(
@@ -129,14 +141,36 @@ def scenario_writer_agent(state: AgentState):
         # 'storyboard' 키가 있는지 확인하고 추출
         if isinstance(storyboard_data, dict) and 'storyboard' in storyboard_data:
             storyboard = storyboard_data['storyboard']
-        else: # 가끔 LLM이 최상위 키 없이 바로 리스트를 반환할 때를 대비
+        elif isinstance(storyboard_data, dict) and 'scenes' in storyboard_data:
+            # 'scenes' 키가 있는 경우도 처리
+            storyboard = storyboard_data['scenes']
+        elif isinstance(storyboard_data, list):
+            # 직접 리스트로 반환된 경우
             storyboard = storyboard_data
+        else:
+            # 딕셔너리이지만 storyboard나 scenes 키가 없는 경우, 값들을 리스트로 변환 시도
+            if isinstance(storyboard_data, dict):
+                # 딕셔너리의 값들이 scene 객체들인지 확인
+                values = list(storyboard_data.values())
+                if values and all(isinstance(v, dict) and 'image_index' in v for v in values):
+                    storyboard = values
+                else:
+                    storyboard = storyboard_data
+            else:
+                storyboard = storyboard_data
+
+        # storyboard가 리스트인지 최종 확인
+        if not isinstance(storyboard, list):
+            error_msg = f"스토리보드를 리스트 형태로 변환할 수 없습니다. 타입: {type(storyboard)}, 내용: {storyboard}"
+            st.error(error_msg)
+            return {"error_message": error_msg}
 
         # storyboard duration 지정
         durations = [10, 10, 10, 5, 10, 10, 12]
         if len(storyboard) == len(durations):
             for i in range(len(storyboard)):
-                storyboard[i]['duration'] = durations[i]
+                if isinstance(storyboard[i], dict):
+                    storyboard[i]['duration'] = durations[i]
         
         st.success("스토리보드 기획 완료!")
         # 디버깅을 위해 스토리보드 출력

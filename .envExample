@@ -1,4 +1,14 @@
 AK=
 SK=
+
+xAK=
+xSK=
+
 HEYGEN_API_KEY=
+
+# OpenAI API Key - 실제 키로 교체해주세요
 OPENAI_API_KEY=
+OPENROUTER_API_KEY=
+GOOGLE_API_KEY=
+YOUR_SITE_URL=https//nowagift.com
+YOUR_SITE_NAME=nowagift
