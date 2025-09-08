@@ -44,14 +44,18 @@ if not base64_image:
 
 print("이미지 파일을 성공적으로 인코딩했습니다.")
 
-prompt = "Create a new image based on this reference. Show a woman with purple hair on a beautiful Jeju Island beach with the ocean and mountains in the background. Generate a complete new image with these elements."
+# API 요청 설정
 url = "https://openrouter.ai/api/v1/chat/completions"
 headers = {
     "Authorization": f"Bearer {APIK}",
     "Content-Type": "application/json",
-    "HTTP-Referer": YOUR_SITE_URL or "", # Optional. Site URL for rankings on openrouter.ai.
-    "X-Title": YOUR_SITE_NAME or "", # Optional. Site title for rankings on openrouter.ai.
+    "HTTP-Referer": YOUR_SITE_URL or "",
+    "X-Title": YOUR_SITE_NAME or "",
 }
+
+# 이미지와 함께 전송할 프롬프트
+prompt = "이 이미지의 배경을 제주도 한라산과 바다로 바꿔주세요. 인물은 그대로 유지하고 배경만 제주도의 아름다운 자연경관으로 변경해주세요."
+
 payload = {
     "model": "google/gemini-2.5-flash-image-preview",
     "messages": [
@@ -74,39 +78,41 @@ payload = {
     "modalities": ["image", "text"]
 }
 
-print("Generating image...")
+print("API 요청을 전송 중...")
 response = requests.post(url, headers=headers, json=payload)
-result = response.json()
 
 print("Status Code:", response.status_code)
+result = response.json()
 print("Response:", json.dumps(result, indent=2, ensure_ascii=False))
 
-# The generated image will be in the assistant message
+# 생성된 이미지 처리
 if result.get("choices"):
     message = result["choices"][0]["message"]
     print("Message content:", message.get("content"))
     
     if message.get("images"):
         for i, image in enumerate(message["images"]):
-            image_url = image["image_url"]["url"]  # Base64 data URL
+            image_url = image["image_url"]["url"]
             
             # Extract base64 data from data URL
             if image_url.startswith("data:image/"):
-                # Format: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...
                 header, data = image_url.split(",", 1)
                 image_data = base64.b64decode(data)
                 
                 # Save image with timestamp
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"jeju_beach__{timestamp}_{i+1}.png"
+                filename = f"jeju_background_{timestamp}_{i+1}.png"
                 
                 with open(filename, "wb") as f:
                     f.write(image_data)
                 
-                print(f"제주도 해변 비키니 이미지가 '{filename}'로 저장되었습니다!")
+                print(f"제주도 배경으로 변경된 이미지가 '{filename}'로 저장되었습니다!")
             else:
                 print("Unexpected image URL format:", image_url)
     else:
-        print("응답에서 이미지를 찾을 수 없습니다.")
+        print("❌ 응답에서 이미지를 찾을 수 없습니다.")
+        print("텍스트 응답:", message.get("content", "응답 없음"))
 else:
-    print("API 요청이 실패했습니다.")
+    print("❌ API 요청이 실패했습니다.")
+    if result.get("error"):
+        print("오류:", result["error"])
