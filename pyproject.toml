@@ -17,6 +17,7 @@ dependencies = [
     "numpy==2.3.2",
     "pillow==11.3.0",
     "proglog==0.1.12",
+    "pyjwt>=2.10.1",
     "python-dotenv==1.1.1",
     "streamlit>=1.48.1",
     "tqdm==4.67.1",

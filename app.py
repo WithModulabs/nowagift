@@ -18,6 +18,10 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 from langgraph.graph import StateGraph, END
 
+from apiHeygen import HeygenAPI
+from apiKlingAI import KlingAIAPI
+import requests
+import base64
 
 # 환경변수 로드
 load_dotenv()
@@ -37,8 +41,6 @@ else:
 if not os.path.exists("temp"):
     os.makedirs("temp")
 
-
-
 # --- 2. LangGraph 상태 정의 ---
 # 각 에이전트가 작업 내용을 공유하는 데이터 구조
 class AgentState(TypedDict):
@@ -51,15 +53,15 @@ class AgentState(TypedDict):
     subtitle_clips: List[VideoFileClip]  # 자막이 포함된 클립 리스트
     final_video_path: str   # 최종 제작자의 결과물 (완성된 영상 경로)
     error_message: str      # 오류 발생 시 메시지 저장
-
-
+    generated_video_paths: List[str]  # image_video_generator_agent가 생성한 비디오 경로들
 
 # --- 3. 에이전트 및 도구(Tool) 정의 ---
     """
     각 에이전트는 특정 작업을 수행하며, 상태 업데이트
     - 3.1. 시나리오 작가 에이전트: 스크립트와 이미지 개수를 기반으로 스토리보드 생성
-    - 3.2. 자막 생성 에이전트: 스크립트를 바탕으로 자막 영상 생성
-    - 3.3. 최종 제작자 에이전트: 기존 영상과 자막 영상을 결합하여 최종 영상 제작
+    - 3.2. 이미지-비디오 생성 에이전트: 사용자 이미지를 바탕으로 모션 비디오 생성
+    - 3.3. 자막 생성 에이전트: 스크립트를 바탕으로 자막 영상 생성
+    - 3.4. 최종 제작자 에이전트: 기존 영상과 자막 영상을 결합하여 최종 영상 제작
     """
 
 # 3.1. 시나리오 작가 에이전트 (Scenario Writer Agent)
@@ -184,8 +186,206 @@ def scenario_writer_agent(state: AgentState):
         st.error(error_msg)
         return {"error_message": error_msg}
 
+# 3.2. 이미지-비디오 생성 에이전트 (Image Video Generator Agent) 
+def image_video_generator_agent(state: AgentState):
+    """사용자 이미지를 바탕으로 HeyGen과 KlingAI를 사용해 모션 비디오를 생성합니다."""
+    st.write("### 🎨 이미지-비디오 생성 에이전트")
+    st.info("업로드된 사진들을 바탕으로 움직이는 영상을 생성하고 있습니다...")
+    
+    image_paths = state.get("image_paths")
+    theme = state.get("theme")
+    
+    if not image_paths:
+        error_msg = "이미지-비디오 생성에 필요한 사진이 없습니다."
+        st.error(error_msg)
+        return {"error_message": error_msg}
+    
+    heygen_api_key = os.getenv("HEYGEN_API_KEY")
+    kling_ak = os.getenv("AK")
+    kling_sk = os.getenv("SK")
+    
+    use_original_images = False
+    if not heygen_api_key:
+        st.warning("HeyGen API 키가 설정되지 않았습니다. 원본 이미지를 사용합니다.")
+        use_original_images = True
+    elif not kling_ak or not kling_sk:
+        st.warning("KlingAI API 키가 설정되지 않았습니다. 원본 이미지를 사용합니다.")
+        use_original_images = True
+    
+    generated_video_paths = []
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    for idx, image_path in enumerate(image_paths):
+        try:
+            # 진행률 업데이트
+            progress = (idx + 1) / len(image_paths)
+            progress_bar.progress(progress)
+            status_text.text(f"이미지 {idx + 1}/{len(image_paths)} 처리 중...")
+            
+            enhanced_image_path = image_path  # 기본값으로 원본 이미지 설정
+            video_creation_success = False
+            
+            if not use_original_images:
+                try:
+                    st.write(f"HeyGen으로 이미지 {idx + 1} 처리 중...")
+                    heygen = HeygenAPI(heygen_api_key)
+                    heygen_result = heygen.generate_avatar_photo(
+                        image_path=image_path,
+                        name=f"Person_{idx+1}",
+                        age="Late Middle Age",
+                        gender="Person",
+                        ethnicity="East Asian",
+                        orientation="horizontal",
+                        pose="half_body",
+                        style="Realistic",
+                        appearance="A headshot of a person with a gentle smile. Clean white background. Professional and warm expression."
+                    )
+                    
+                    if heygen_result.get("data") and heygen_result["data"].get("generation_id"):
+                        generation_id = heygen_result["data"]["generation_id"]
+                        max_wait_time = 300  # 5분 대기
+                        wait_time = 0
+                        
+                        while wait_time < max_wait_time:
+                            status = heygen.check_generation_status(generation_id)
+                            if status.get("data") and status["data"].get("status") == "success":
+                                image_urls = status["data"].get("image_url_list", [])
+                                if image_urls:
+                                    img_resp = requests.get(image_urls[0])
+                                    if img_resp.status_code == 200:
+                                        enhanced_image_path = f"temp/enhanced_image_{idx+1}_{uuid.uuid4()}.jpg"
+                                        with open(enhanced_image_path, "wb") as f:
+                                            f.write(img_resp.content)
+                                        st.success(f"HeyGen 이미지 {idx + 1} 생성 완료")
+                                        break
+                            time.sleep(5)  
+                            wait_time += 5
+                        else:
+                            st.warning(f"HeyGen 이미지 {idx + 1} 생성 시간 초과, 원본 이미지 사용")
+                    
+                    st.write(f"KlingAI로 비디오 {idx + 1} 생성 중...")
+                    
+                    with open(enhanced_image_path, "rb") as img_file:
+                        img_base64 = base64.b64encode(img_file.read()).decode("utf-8")
+                    
+                    klingai = KlingAIAPI(kling_ak, kling_sk)
+                    video_data = {
+                        "model_name": "kling-v2-1",
+                        "mode": "pro",
+                        "duration": "10",
+                        "image": img_base64,  
+                        "prompt": f"Create a gentle, moving video from this memorial photo. {theme} style. Soft, warm lighting with subtle camera movement. The person in the photo should have a gentle, peaceful expression.",
+                        "cfg_scale": 0.5,
+                    }
+                    
+                    init_response = klingai.generate_video(video_data)
+                    task_data = init_response.get("data", {})
+                    task_id = task_data.get("task_id")
+                    
+                    if not task_id:
+                        st.warning(f"KlingAI 비디오 {idx + 1} 생성 요청 실패, 정적 이미지 사용")
+                    else:
+                        st.write(f"KlingAI 작업 ID: {task_id}")
+                        
+                        max_wait = 600  # 최대 대기 시간 (10분)
+                        interval = 15   # 폴링 간격 (15초)
+                        start_time = time.time()
+                        
+                        while time.time() - start_time < max_wait:
+                            status_response = klingai.check_task_status(task_id)
+                            poll_data = status_response.get("data", {})
+                            poll_status = poll_data.get("task_status")
+                            
+                            st.write(f"KlingAI 상태: {poll_status}")
+                            
+                            if poll_status == "succeed":
+                                videos = poll_data.get("task_result", {}).get("videos", [])
+                                if videos:
+                                    video_url = videos[0].get("url")
+                                    st.success(f"KlingAI 비디오 {idx + 1} 생성 성공!")
+                                    
+                                    video_response = requests.get(video_url, stream=True)
+                                    video_response.raise_for_status()
+                                    
+                                    video_path = f"temp/generated_video_{idx+1}_{uuid.uuid4()}.mp4"
+                                    with open(video_path, "wb") as f:
+                                        for chunk in video_response.iter_content(chunk_size=8192):
+                                            f.write(chunk)
+                                    
+                                    generated_video_paths.append(video_path)
+                                    st.success(f"KlingAI 비디오 {idx + 1} 다운로드 완료")
+                                    video_creation_success = True
+                                    break
+                                else:
+                                    st.warning(f"KlingAI 비디오 {idx + 1} 정보가 응답에 포함되어 있지 않습니다.")
+                                    break
+                            
+                            elif poll_status == "failed":
+                                fail_msg = poll_data.get("task_status_msg", "실패 사유 알 수 없음")
+                                if "risk control" in fail_msg.lower():
+                                    st.info(f"KlingAI 콘텐츠 정책으로 인해 비디오 {idx + 1} 생성이 제한되었습니다. 정적 이미지를 사용합니다.")
+                                else:
+                                    st.warning(f"KlingAI 비디오 {idx + 1} 생성 실패: {fail_msg}")
+                                break
+                                
+                            time.sleep(interval)
+                        else:
+                            st.warning(f"KlingAI 비디오 {idx + 1} 생성 시간 초과, 정적 이미지 사용")
+                
+                except Exception as api_error:
+                    error_msg = str(api_error)
+                    if "insufficient_quota" in error_msg or "402" in error_msg:
+                        st.warning(f"API 할당량이 부족합니다. 원본 이미지를 사용합니다.")
+                        use_original_images = True
+                    else:
+                        st.warning(f"API 오류 발생: {error_msg}. 원본 이미지를 사용합니다.")
+            
+            if not video_creation_success or use_original_images:
+                st.write(f"정적 비디오 {idx + 1} 생성 중...")
+                try:
+                    video_clip = ImageClip(enhanced_image_path).with_duration(10)
+                    video_path = f"temp/static_video_{idx+1}_{uuid.uuid4()}.mp4"
+                    video_clip.write_videofile(video_path, codec="libx264", fps=24)
+                    generated_video_paths.append(video_path)
+                    st.success(f"정적 비디오 {idx + 1} 생성 완료")
+                except Exception as video_error:
+                    st.error(f"비디오 생성 중 오류 발생: {video_error}")
+                    try:
+                        video_clip = ImageClip(image_path).with_duration(10)
+                        video_path = f"temp/fallback_video_{idx+1}_{uuid.uuid4()}.mp4"
+                        video_clip.write_videofile(video_path, codec="libx264", fps=24)
+                        generated_video_paths.append(video_path)
+                        st.warning(f"원본 이미지로 비디오 {idx + 1} 생성 완료")
+                    except Exception as final_error:
+                        error_msg = f"이미지 {idx + 1} 처리 중 치명적 오류 발생: {final_error}"
+                        return {"error_message": error_msg}
+            
+        except Exception as e:
+            st.error(f"이미지 {idx + 1} 처리 중 오류 발생: {e}")
+            try:
+                video_clip = ImageClip(image_path).with_duration(10)
+                video_path = f"temp/fallback_video_{idx+1}_{uuid.uuid4()}.mp4"
+                video_clip.write_videofile(video_path, codec="libx264", fps=24)
+                generated_video_paths.append(video_path)
+                st.warning(f"오류 복구: 원본 이미지로 비디오 {idx + 1} 생성 완료")
+            except:
+                error_msg = f"이미지 {idx + 1} 처리 중 치명적 오류 발생: {e}"
+                return {"error_message": error_msg}
+    
+    if not generated_video_paths:
+        error_msg = "생성된 비디오가 하나도 없습니다."
+        st.error(error_msg)
+        return {"error_message": error_msg}
+    
+    if use_original_images:
+        st.success(f"총 {len(generated_video_paths)}개의 정적 비디오 생성 완료! (원본 이미지 사용)")
+    else:
+        st.success(f"총 {len(generated_video_paths)}개의 비디오 생성 완료!")
+    
+    return {"generated_video_paths": generated_video_paths}
 
-# 3.2. 자막 생성 에이전트 (Subtitle Creator Agent)
+# 3.3. 자막 생성 에이전트 (Subtitle Creator Agent) 
 def subtitle_creator_agent(state: AgentState):
     """스크립트를 바탕으로 투명한 배경의 자막 영상을 생성합니다."""
     st.write("### 📝 자막 생성 에이전트")
@@ -277,8 +477,7 @@ def subtitle_creator_agent(state: AgentState):
     # 각 장면별로 생성된 클립들의 리스트를 반환
     return {"subtitle_clips": subtitle_clips}
 
-
-# 3.3. 최종 제작자 에이전트 (Final Producer Agent) - 영상 생성 도구
+# 3.4. 최종 제작자 에이전트 (Final Producer Agent) 
 def final_producer_agent(state: AgentState):
     """기존 영상과 자막 영상을 결합하여 최종 영상을 제작합니다."""
     st.write("### 🎬 최종 제작자 에이전트")
@@ -287,8 +486,8 @@ def final_producer_agent(state: AgentState):
     storyboard = state.get("storyboard")
     image_paths = state.get("image_paths")
     audio_path = state.get("audio_path")
-    total_duration = state.get("total_duration")
     subtitle_clips = state.get("subtitle_clips")
+    generated_video_paths = state.get("generated_video_paths", [])
     
     # 테마별 효과 설정
     # 이 부분을 확장하여 더 다양한 효과를 추가할 수 있습니다.
@@ -348,19 +547,24 @@ def final_producer_agent(state: AgentState):
             else:
                 time_text.text(f"⏱️ 예상 소요 시간: {estimated_total_time}초")
 
-            # 비디오 클립 생성 (1번 코드의 로직)
             video_clip = None
             
             if img_index == 1:
                 video_clip = VideoFileClip("resources/theme/t01.mp4").with_duration(duration)
             elif img_index == 2:
-                if len(image_paths) > 0:
+                if len(generated_video_paths) > 0 and os.path.exists(generated_video_paths[0]):
+                    video_clip = VideoFileClip(generated_video_paths[0]).with_duration(duration)
+                elif len(image_paths) > 0:
+                    # 백업: 원본 이미지 사용
                     video_clip = ImageClip(image_paths[0]).with_duration(duration)
                 else:
                     st.warning("장면 2에 필요한 사진이 없어 기본 클립을 사용합니다.")
                     video_clip = VideoFileClip("resources/theme/t01.mp4").with_duration(duration)
             elif img_index == 3:
-                if len(image_paths) > 1:
+                if len(generated_video_paths) > 1 and os.path.exists(generated_video_paths[1]):
+                    video_clip = VideoFileClip(generated_video_paths[1]).with_duration(duration)
+                elif len(image_paths) > 1:
+                    # 백업: 원본 이미지 사용
                     video_clip = ImageClip(image_paths[1]).with_duration(duration)
                 else:
                     st.warning("장면 3에 필요한 사진이 없어 기본 클립을 사용합니다.")
@@ -368,13 +572,19 @@ def final_producer_agent(state: AgentState):
             elif img_index == 4:
                 video_clip = VideoFileClip("resources/theme/t04.mp4").with_duration(duration)
             elif img_index == 5:
-                if len(image_paths) > 2:
+                if len(generated_video_paths) > 2 and os.path.exists(generated_video_paths[2]):
+                    video_clip = VideoFileClip(generated_video_paths[2]).with_duration(duration)
+                elif len(image_paths) > 2:
+                    # 백업: 원본 이미지 사용
                     video_clip = ImageClip(image_paths[2]).with_duration(duration)
                 else:
                     st.warning("장면 5에 필요한 사진이 없어 기본 클립을 사용합니다.")
                     video_clip = VideoFileClip("resources/theme/t01.mp4").with_duration(duration)
             elif img_index == 6:
-                if len(image_paths) > 3:
+                if len(generated_video_paths) > 3 and os.path.exists(generated_video_paths[3]):
+                    video_clip = VideoFileClip(generated_video_paths[3]).with_duration(duration)
+                elif len(image_paths) > 3:
+                    # 백업: 원본 이미지 사용
                     video_clip = ImageClip(image_paths[3]).with_duration(duration)
                 else:
                     st.warning("장면 6에 필요한 사진이 없어 기본 클립을 사용합니다.")
@@ -413,12 +623,46 @@ def final_producer_agent(state: AgentState):
 
     # 모든 영상 클립을 하나로 연결
     final_video_clip = concatenate_videoclips(combined_clips, method="compose")
-    
-    if audio_path:
-        audio_clip = AudioFileClip(audio_path)
-        if audio_clip.duration > final_video_clip.duration:
-            audio_clip = audio_clip.subclipped(0, final_video_clip.duration)
-        final_video_clip = final_video_clip.with_audio(audio_clip)
+
+    # 백그라운드 음악 추가
+    background_music_path = "resources/music/m0.mp3"
+    if os.path.exists(background_music_path):
+        background_music = AudioFileClip(background_music_path)
+
+        # 배경음악을 영상 길이에 맞게 조정
+        if background_music.duration < final_video_clip.duration:
+            # 음악이 짧으면 반복
+            loops_needed = int(final_video_clip.duration / background_music.duration) + 1
+            background_music = background_music.loop(loops_needed)
+
+        # 음악을 영상 길이에 맞게 자르기
+        background_music = background_music.subclipped(0, final_video_clip.duration)
+
+        # 배경음악 볼륨 조절 - MoviePy 버전 호환성을 위해 간단하게 처리
+        background_music = background_music.with_fps(22050)
+        # 볼륨 조절은 오디오 믹싱 시 CompositeAudioClip에서 처리
+
+        if audio_path:
+            # 사용자 음성이 있으면 믹싱
+            user_audio = AudioFileClip(audio_path)
+            if user_audio.duration > final_video_clip.duration:
+                user_audio = user_audio.subclipped(0, final_video_clip.duration)
+
+            # 두 오디오를 합성 (배경음악 + 사용자 음성)
+            from moviepy import CompositeAudioClip
+            # 배경음악과 사용자 음성을 믹싱 (배경음악은 자동으로 낮은 볼륨)
+            mixed_audio = CompositeAudioClip([background_music, user_audio])
+            final_video_clip = final_video_clip.with_audio(mixed_audio)
+        else:
+            # 사용자 음성이 없으면 배경음악만
+            final_video_clip = final_video_clip.with_audio(background_music)
+    else:
+        # 배경음악 파일이 없는 경우 기존 로직
+        if audio_path:
+            audio_clip = AudioFileClip(audio_path)
+            if audio_clip.duration > final_video_clip.duration:
+                audio_clip = audio_clip.subclipped(0, final_video_clip.duration)
+            final_video_clip = final_video_clip.with_audio(audio_clip)
 
     output_filename = f"temp/final_video_{uuid.uuid4()}.mp4"
     final_video_clip.write_videofile(output_filename, codec="libx264", audio_codec="aac", fps=24)
@@ -426,26 +670,22 @@ def final_producer_agent(state: AgentState):
     st.success("영상 제작 완료!")
     return {"final_video_path": output_filename}
 
-
-
 # --- 4. LangGraph 워크플로우 구성 ---
 workflow = StateGraph(AgentState)
 
-# 노드(에이전트) 추가
 workflow.add_node("scenario_writer", scenario_writer_agent)
+workflow.add_node("image_video_generator", image_video_generator_agent)  
 workflow.add_node("subtitle_creator", subtitle_creator_agent)
 workflow.add_node("final_producer", final_producer_agent)
 
-# 엣지(흐름) 연결
 workflow.set_entry_point("scenario_writer")
-workflow.add_edge("scenario_writer", "subtitle_creator") 
+workflow.add_edge("scenario_writer", "image_video_generator")  
+workflow.add_edge("image_video_generator", "subtitle_creator") 
 workflow.add_edge("subtitle_creator", "final_producer") 
 workflow.add_edge("final_producer", END) 
 
 # 그래프 컴파일
 app = workflow.compile()
-
-
 
 # --- 5. Streamlit UI 구성 ---
 st.set_page_config(page_title="🕊️ 추모 영상 제작 에이전트", layout="wide")
@@ -623,7 +863,8 @@ with col2:
                     storyboard=None,
                     final_video_path=None,
                     error_message=None,
-                    subtitle_clips=[]
+                    subtitle_clips=[],
+                    generated_video_paths=[] 
                 )
                 
                 # 3. LangGraph 실행
@@ -647,19 +888,20 @@ with col2:
                                 mime="video/mp4"
                             )
                             
-                        # 다운로드 후 임시 파일 삭제
                         st.markdown("---")
                         if st.button("임시 파일 정리하기", help="다운로드 후 이 버튼을 눌러 임시 파일을 삭제하세요."):
                             if os.path.exists(video_path): os.remove(video_path)
                             for path in temp_image_paths:
                                 if os.path.exists(path): os.remove(path)
+                            generated_videos = final_state.get("generated_video_paths", [])
+                            for video_path in generated_videos:
+                                if os.path.exists(video_path): os.remove(video_path)
                             if temp_audio_path and os.path.exists(temp_audio_path) and temp_audio_path != "resources/music/m0.mp3":
                                  os.remove(temp_audio_path)
                             st.success("임시 파일이 성공적으로 삭제되었습니다.")
 
                     else:
                         st.error("알 수 없는 오류로 영상 파일을 찾을 수 없습니다.")
-
 
 # --- UI 하단 설명 추가 ---
 st.markdown("---")

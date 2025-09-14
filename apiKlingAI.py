@@ -1,6 +1,13 @@
 import os
 import time
-import jwt
+try:
+    import jwt
+    # Test if jwt.encode exists
+    if not hasattr(jwt, 'encode'):
+        raise ImportError("JWT module missing encode method")
+except ImportError:
+    # Fallback: try explicit PyJWT import
+    import PyJWT as jwt
 import requests
 from dotenv import load_dotenv
 
@@ -14,16 +21,12 @@ class KlingAIAPI:
 
     # jwt 토큰 생성 및 반환
     def _get_api_token(self):
-        headers = {
-            "alg": "HS256",
-            "typ": "JWT"
-        }
         payload = {
             "iss": self.ak,
             "exp": int(time.time()) + 1800,  # 30분 유효
             "nbf": int(time.time()) - 5
         }
-        token = jwt.encode(payload, self.sk, headers=headers)
+        token = jwt.encode(payload, self.sk, algorithm="HS256")
         return token
 
     def _get_headers(self):
