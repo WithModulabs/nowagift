@@ -4,3 +4,4 @@ venv/
 temp/
 *.mp4
 *.png
+*.pyc

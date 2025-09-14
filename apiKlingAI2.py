@@ -150,10 +150,6 @@ if __name__ == "__main__":
     load_dotenv()
     POE_API_KEY = os.environ.get("POE_API_KEY")
     
-    if not POE_API_KEY:
-        # 하드코딩된 키 사용 (보안상 권장하지 않음)
-        POE_API_KEY = "F39BTBYCg0tAq57cHRV3qXLl2tmFPH1VDS2hC0mnvo4"
-    
     # KlingAI2 API 객체 생성
     klingai2 = KlingAI2API(api_key=POE_API_KEY)
     
