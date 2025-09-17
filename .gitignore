@@ -9,4 +9,6 @@ __pycache__/
 .claude
 docs/
 images/
+*.jpeg
+
 
