@@ -81,6 +81,37 @@ def compress_image(image_file, max_size_mb=5, quality=85):
         st.warning(f"이미지 압축 중 오류 발생: {e}")
         return image_file
 
+# API용 이미지 압축 함수 (더 작은 크기로)
+def compress_image_for_api(image_path, max_width=1024, quality=70):
+    """API 전송을 위해 이미지를 더 크게 압축합니다."""
+    try:
+        with Image.open(image_path) as img:
+            # RGB로 변환
+            if img.mode in ('RGBA', 'P'):
+                img = img.convert('RGB')
+
+            # 크기 조정 (긴 변을 1024px로 제한)
+            width, height = img.size
+            if width > max_width or height > max_width:
+                if width > height:
+                    new_width = max_width
+                    new_height = int(height * (max_width / width))
+                else:
+                    new_height = max_width
+                    new_width = int(width * (max_width / height))
+                img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+            # 메모리에 저장
+            output = io.BytesIO()
+            img.save(output, format='JPEG', quality=quality, optimize=True)
+            return output.getvalue()
+
+    except Exception as e:
+        st.warning(f"API용 이미지 압축 중 오류 발생: {e}")
+        # 실패시 원본 파일 읽기
+        with open(image_path, "rb") as f:
+            return f.read()
+
 # --- 2. LangGraph 상태 정의 ---
 # 각 에이전트가 작업 내용을 공유하는 데이터 구조
 class AgentState(TypedDict):
@@ -305,21 +336,46 @@ def image_video_generator_agent(state: AgentState):
                             st.warning(f"HeyGen 이미지 {idx + 1} 생성 시간 초과, 원본 이미지 사용")
                     
                     st.write(f"KlingAI로 비디오 {idx + 1} 생성 중...")
-                    
-                    with open(enhanced_image_path, "rb") as img_file:
-                        img_base64 = base64.b64encode(img_file.read()).decode("utf-8")
+
+                    # API용으로 이미지 압축
+                    compressed_img_data = compress_image_for_api(enhanced_image_path)
+                    img_base64 = base64.b64encode(compressed_img_data).decode("utf-8")
+
+                    # Base64 크기 확인 및 로깅
+                    base64_size_mb = len(img_base64) / (1024 * 1024)
+                    st.write(f"전송할 이미지 크기: {base64_size_mb:.2f}MB (base64)")
                     
                     klingai = KlingAIAPI(kling_ak, kling_sk)
+
+                    # Base64 크기가 너무 크면 더 압축
+                    if base64_size_mb > 8:  # 8MB가 넘으면 더 압축
+                        st.warning(f"이미지가 너무 큽니다. 더 압축합니다...")
+                        compressed_img_data = compress_image_for_api(enhanced_image_path, max_width=512, quality=50)
+                        img_base64 = base64.b64encode(compressed_img_data).decode("utf-8")
+                        base64_size_mb = len(img_base64) / (1024 * 1024)
+                        st.write(f"재압축 후 크기: {base64_size_mb:.2f}MB (base64)")
+
                     video_data = {
                         "model_name": "kling-v2-1",
                         "mode": "pro",
                         "duration": "10",
-                        "image": img_base64,  
+                        "image": img_base64,
                         "prompt": f"Create a gentle, moving video from this memorial photo. {theme} style. Soft, warm lighting with subtle camera movement. The person in the photo should have a gentle, peaceful expression.",
                         "cfg_scale": 0.5,
                     }
-                    
-                    init_response = klingai.generate_video(video_data)
+
+                    try:
+                        init_response = klingai.generate_video(video_data)
+                    except Exception as api_error:
+                        if "413" in str(api_error) or "Request Entity Too Large" in str(api_error):
+                            st.warning("API 요청 크기 초과. 이미지를 더 압축하여 재시도합니다...")
+                            # 최대 압축으로 재시도
+                            compressed_img_data = compress_image_for_api(enhanced_image_path, max_width=256, quality=30)
+                            img_base64 = base64.b64encode(compressed_img_data).decode("utf-8")
+                            video_data["image"] = img_base64
+                            init_response = klingai.generate_video(video_data)
+                        else:
+                            raise api_error
                     task_data = init_response.get("data", {})
                     task_id = task_data.get("task_id")
                     
