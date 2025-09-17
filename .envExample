@@ -1,13 +1,13 @@
+# Kling API Keys - 실제 키로 교체해주세요
 AK=
 SK=
-
-xAK=
-xSK=
-
+# HeyGen API Key - 실제 키로 교체해주세요
 HEYGEN_API_KEY=
 
 # OpenAI API Key - 실제 키로 교체해주세요
 OPENAI_API_KEY=
+
+# OpenRouter API Key - 실제 키로 교체해주세요
 OPENROUTER_API_KEY=
 GOOGLE_API_KEY=
 YOUR_SITE_URL=https//nowagift.com

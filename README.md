@@ -7,28 +7,52 @@ Kling AI NEW API를 활용한 이미지 생성 예제 및 JWT 기반 인증 토�
 
 ### uv 설치
 
-아래 명령어로 uv를 설치할 수 있습니다:
+#### Windows
+```powershell
+# PowerShell (관리자 권한 권장)
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-- Windows
-	```powershell
-	pip install uv
-	```
-- Linux/macOS
-	```bash
-	pip install uv
-	```
+# 또는 pip 사용
+pip install uv
 
-
-### 1. 파이썬 가상환경(venv) 생성 및 활성화
-윈도우 기준 명령어:
-```
-python -m venv venv
-.\venv\Scripts\activate
+# 또는 winget 사용
+winget install --id=astral-sh.uv -e
 ```
 
-### 2. 필수 패키지 설치
+#### Linux/macOS
+```bash
+# curl 사용 (권장)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 또는 pip 사용
+pip install uv
+
+# macOS의 경우 Homebrew 사용 가능
+brew install uv
 ```
-pip install -r requirements.txt
+
+#### 설치 확인
+```bash
+uv --version
+```
+
+
+### 1. uv로 가상환경 생성 및 활성화
+```bash
+# 가상환경 생성
+uv venv
+
+# 가상환경 활성화 (Windows)
+.venv\Scripts\activate
+
+# 가상환경 활성화 (Linux/macOS)
+source .venv/bin/activate
+```
+
+### 2. 프로젝트 의존성 동기화
+```bash
+# pyproject.toml의 의존성 설치
+uv sync
 ```
 
 ### 3. 환경 변수 설정
@@ -60,8 +84,9 @@ source ~/.bashrc
 ### 1. JWT 토큰 생성 및 이미지 생성 API 호출
 `apiToken.py` 파일을 실행하면 JWT 토큰을 생성하고, Kling AI 이미지 생성 API를 호출합니다.
 
-```
-python apiToken.py
+```bash
+# uv 가상환경에서 실행
+uv run python apiToken.py
 ```
 
 - API 엔드포인트, 파라미터 등은 Kling AI 공식 문서에 맞게 수정하세요.
@@ -69,22 +94,28 @@ python apiToken.py
 
 ## 주요 파일 설명
 - `apiToken.py` : JWT 토큰 생성 및 이미지 생성 API 호출 예제
-- `requirements.txt` : 필요한 파이썬 패키지 목록
+- `pyproject.toml` : 프로젝트 의존성 및 설정 파일
+- `uv.lock` : 정확한 의존성 버전 잠금 파일
 - `.env` : Access Key, Secret Key 등 민감 정보 환경변수 파일(직접 생성 필요)
 
-## 의존성 설치 (uv 사용)
+## 의존성 관리 (uv 사용)
 
+### 새 패키지 추가
+```bash
+# 새 패키지 추가
+uv add package_name
 
-아래 명령어로 requirements.txt의 모든 의존성을 설치할 수 있습니다:
-
-```powershell
-uv add -r requirements.txt
+# 개발 전용 패키지 추가
+uv add --dev package_name
 ```
 
-설치된 패키지 목록을 requirements.txt로 저장하려면 아래 명령어를 사용하세요:
+### 의존성 동기화
+```bash
+# pyproject.toml과 uv.lock을 기반으로 의존성 동기화
+uv sync
 
-```powershell
-uv pip freeze > requirements.txt
+# 개발 의존성 제외하고 동기화
+uv sync --no-dev
 ```
 
 ## Streamlit 앱 실행
@@ -110,7 +141,7 @@ uv run streamlit run app.py --server.address 0.0.0.0 --server.port 8501
 2. Streamlit 앱 실행
 	 - 로컬에서 실행:
 		 ```bash
-		 uv run streamlit run your_app.py
+		 uv run streamlit run app.py
 		 ```
 	 - 서버(외부 접속 허용)에서 실행:
 		 ```bash
