@@ -5,3 +5,8 @@ temp/
 *.mp4
 *.png
 *.pyc
+__pycache__/
+.claude
+docs/
+images/
+
