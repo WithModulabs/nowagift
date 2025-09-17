@@ -784,7 +784,11 @@ workflow.add_edge("final_producer", END)
 app = workflow.compile()
 
 # --- 5. Streamlit UI 구성 ---
-st.set_page_config(page_title="🕊️ 추모 영상 제작 에이전트", layout="wide")
+st.set_page_config(
+    page_title="🕊️ 추모 영상 제작 에이전트",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
 st.title("🕊️ 추모 영상 제작 에이전트")
 st.markdown("고인을 기리는 소중한 마음을 담아, 세상에 하나뿐인 영상을 만들어 드립니다.")
@@ -834,6 +838,7 @@ with col1:
     script = "\n".join([text for text in text_inputs if text.strip()])
 
     st.subheader("사진 업로드 (4장)")
+    st.info("📝 **중요**: 업로드된 모든 이미지는 자동으로 최적화됩니다. 큰 파일도 안전하게 처리됩니다.")
     uploaded_images = []
     
     # 1번째 이미지 업로드 필드
@@ -848,14 +853,18 @@ with col1:
             help="고화질 사진을 선택해주세요. (최대 10MB)"
         )
 
-        # 파일 크기 검증
+        # 파일 크기 검증 및 즉시 압축
         if img1 is not None:
             file_size_mb = len(img1.getvalue()) / (1024 * 1024)
-            if file_size_mb > 10:
-                st.error(f"파일 크기가 너무 큽니다: {file_size_mb:.1f}MB. 10MB 이하의 파일을 선택해주세요.")
+            if file_size_mb > 20:
+                st.error(f"파일 크기가 너무 큽니다: {file_size_mb:.1f}MB. 20MB 이하의 파일을 선택해주세요.")
                 img1 = None
             else:
-                img1 = compress_image(img1)
+                # 파일 크기에 관계없이 항상 압축
+                img1 = compress_image(img1, max_size_mb=2, quality=80)
+                if img1:
+                    compressed_size_mb = len(img1.getvalue()) / (1024 * 1024)
+                    st.success(f"이미지 압축 완료: {file_size_mb:.1f}MB → {compressed_size_mb:.1f}MB")
     
     with col_thumb1:
         if img1 is not None:
@@ -874,14 +883,18 @@ with col1:
             help="고화질 사진을 선택해주세요. (최대 10MB)"
         )
 
-        # 파일 크기 검증
+        # 파일 크기 검증 및 즉시 압축
         if img2 is not None:
             file_size_mb = len(img2.getvalue()) / (1024 * 1024)
-            if file_size_mb > 10:
-                st.error(f"파일 크기가 너무 큽니다: {file_size_mb:.1f}MB. 10MB 이하의 파일을 선택해주세요.")
+            if file_size_mb > 20:
+                st.error(f"파일 크기가 너무 큽니다: {file_size_mb:.1f}MB. 20MB 이하의 파일을 선택해주세요.")
                 img2 = None
             else:
-                img2 = compress_image(img2)
+                # 파일 크기에 관계없이 항상 압축
+                img2 = compress_image(img2, max_size_mb=2, quality=80)
+                if img2:
+                    compressed_size_mb = len(img2.getvalue()) / (1024 * 1024)
+                    st.success(f"이미지 압축 완료: {file_size_mb:.1f}MB → {compressed_size_mb:.1f}MB")
     
     with col_thumb2:
         if img2 is not None:
@@ -900,14 +913,18 @@ with col1:
             help="고화질 사진을 선택해주세요. (최대 10MB)"
         )
 
-        # 파일 크기 검증
+        # 파일 크기 검증 및 즉시 압축
         if img3 is not None:
             file_size_mb = len(img3.getvalue()) / (1024 * 1024)
-            if file_size_mb > 10:
-                st.error(f"파일 크기가 너무 큽니다: {file_size_mb:.1f}MB. 10MB 이하의 파일을 선택해주세요.")
+            if file_size_mb > 20:
+                st.error(f"파일 크기가 너무 큽니다: {file_size_mb:.1f}MB. 20MB 이하의 파일을 선택해주세요.")
                 img3 = None
             else:
-                img3 = compress_image(img3)
+                # 파일 크기에 관계없이 항상 압축
+                img3 = compress_image(img3, max_size_mb=2, quality=80)
+                if img3:
+                    compressed_size_mb = len(img3.getvalue()) / (1024 * 1024)
+                    st.success(f"이미지 압축 완료: {file_size_mb:.1f}MB → {compressed_size_mb:.1f}MB")
     
     with col_thumb3:
         if img3 is not None:
@@ -926,14 +943,18 @@ with col1:
             help="고화질 사진을 선택해주세요. (최대 10MB)"
         )
 
-        # 파일 크기 검증
+        # 파일 크기 검증 및 즉시 압축
         if img4 is not None:
             file_size_mb = len(img4.getvalue()) / (1024 * 1024)
-            if file_size_mb > 10:
-                st.error(f"파일 크기가 너무 큽니다: {file_size_mb:.1f}MB. 10MB 이하의 파일을 선택해주세요.")
+            if file_size_mb > 20:
+                st.error(f"파일 크기가 너무 큽니다: {file_size_mb:.1f}MB. 20MB 이하의 파일을 선택해주세요.")
                 img4 = None
             else:
-                img4 = compress_image(img4)
+                # 파일 크기에 관계없이 항상 압축
+                img4 = compress_image(img4, max_size_mb=2, quality=80)
+                if img4:
+                    compressed_size_mb = len(img4.getvalue()) / (1024 * 1024)
+                    st.success(f"이미지 압축 완료: {file_size_mb:.1f}MB → {compressed_size_mb:.1f}MB")
     
     with col_thumb4:
         if img4 is not None:
