@@ -5,6 +5,7 @@ import uuid
 from typing import TypedDict, List, Dict
 from dotenv import load_dotenv
 from PIL import Image
+import io
 from moviepy import (
     ImageClip,
     VideoFileClip,
@@ -40,6 +41,45 @@ else:
 # 임시 파일들을 저장할 디렉토리 생성
 if not os.path.exists("temp"):
     os.makedirs("temp")
+
+# 이미지 압축 함수
+def compress_image(image_file, max_size_mb=5, quality=85):
+    """이미지를 압축하여 파일 크기를 줄입니다."""
+    try:
+        # 파일 크기 확인
+        file_size_mb = len(image_file.getvalue()) / (1024 * 1024)
+
+        if file_size_mb <= max_size_mb:
+            return image_file  # 이미 작으면 그대로 반환
+
+        # PIL Image로 열기
+        img = Image.open(image_file)
+
+        # RGB로 변환 (JPEG 저장을 위해)
+        if img.mode in ('RGBA', 'P'):
+            img = img.convert('RGB')
+
+        # 크기 조정 (긴 변을 1920px로 제한)
+        width, height = img.size
+        if width > 1920 or height > 1920:
+            if width > height:
+                new_width = 1920
+                new_height = int(height * (1920 / width))
+            else:
+                new_height = 1920
+                new_width = int(width * (1920 / height))
+            img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+        # 압축된 이미지를 BytesIO에 저장
+        output = io.BytesIO()
+        img.save(output, format='JPEG', quality=quality, optimize=True)
+        output.seek(0)
+
+        return output
+
+    except Exception as e:
+        st.warning(f"이미지 압축 중 오류 발생: {e}")
+        return image_file
 
 # --- 2. LangGraph 상태 정의 ---
 # 각 에이전트가 작업 내용을 공유하는 데이터 구조
@@ -749,8 +789,17 @@ with col1:
             "장면 #2 사진 선택",
             type=["jpg", "jpeg", "png"],
             key="image_1",
-            help="고화질 사진을 선택해주세요."
+            help="고화질 사진을 선택해주세요. (최대 10MB)"
         )
+
+        # 파일 크기 검증
+        if img1 is not None:
+            file_size_mb = len(img1.getvalue()) / (1024 * 1024)
+            if file_size_mb > 10:
+                st.error(f"파일 크기가 너무 큽니다: {file_size_mb:.1f}MB. 10MB 이하의 파일을 선택해주세요.")
+                img1 = None
+            else:
+                img1 = compress_image(img1)
     
     with col_thumb1:
         if img1 is not None:
@@ -766,8 +815,17 @@ with col1:
             "장면 #3 사진 선택",
             type=["jpg", "jpeg", "png"],
             key="image_2",
-            help="고화질 사진을 선택해주세요."
+            help="고화질 사진을 선택해주세요. (최대 10MB)"
         )
+
+        # 파일 크기 검증
+        if img2 is not None:
+            file_size_mb = len(img2.getvalue()) / (1024 * 1024)
+            if file_size_mb > 10:
+                st.error(f"파일 크기가 너무 큽니다: {file_size_mb:.1f}MB. 10MB 이하의 파일을 선택해주세요.")
+                img2 = None
+            else:
+                img2 = compress_image(img2)
     
     with col_thumb2:
         if img2 is not None:
@@ -783,8 +841,17 @@ with col1:
             "장면 #5 사진 선택",
             type=["jpg", "jpeg", "png"],
             key="image_3",
-            help="고화질 사진을 선택해주세요."
+            help="고화질 사진을 선택해주세요. (최대 10MB)"
         )
+
+        # 파일 크기 검증
+        if img3 is not None:
+            file_size_mb = len(img3.getvalue()) / (1024 * 1024)
+            if file_size_mb > 10:
+                st.error(f"파일 크기가 너무 큽니다: {file_size_mb:.1f}MB. 10MB 이하의 파일을 선택해주세요.")
+                img3 = None
+            else:
+                img3 = compress_image(img3)
     
     with col_thumb3:
         if img3 is not None:
@@ -800,8 +867,17 @@ with col1:
             "장면 #6 사진 선택",
             type=["jpg", "jpeg", "png"],
             key="image_4",
-            help="고화질 사진을 선택해주세요."
+            help="고화질 사진을 선택해주세요. (최대 10MB)"
         )
+
+        # 파일 크기 검증
+        if img4 is not None:
+            file_size_mb = len(img4.getvalue()) / (1024 * 1024)
+            if file_size_mb > 10:
+                st.error(f"파일 크기가 너무 큽니다: {file_size_mb:.1f}MB. 10MB 이하의 파일을 선택해주세요.")
+                img4 = None
+            else:
+                img4 = compress_image(img4)
     
     with col_thumb4:
         if img4 is not None:
@@ -816,8 +892,15 @@ with col1:
     uploaded_audio = st.file_uploader(
         "음성 파일 업로드",
         type=["mp3", "wav", "m4a"],
-        help="영상 전체에 사용될 음원 파일입니다. 70초 이하 길이의 파일을 권장합니다."
+        help="영상 전체에 사용될 음원 파일입니다. 70초 이하 길이의 파일을 권장합니다. (최대 50MB)"
     )
+
+    # 오디오 파일 크기 검증
+    if uploaded_audio is not None:
+        audio_size_mb = len(uploaded_audio.getvalue()) / (1024 * 1024)
+        if audio_size_mb > 50:
+            st.error(f"오디오 파일 크기가 너무 큽니다: {audio_size_mb:.1f}MB. 50MB 이하의 파일을 선택해주세요.")
+            uploaded_audio = None
 
 with col2:
     st.subheader("2. 영상 생성 및 확인")
